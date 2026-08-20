@@ -1,0 +1,17 @@
+<section class="empty-state">
+    <p class="eyebrow">@Eyebrow</p>
+    <h2>@Title</h2>
+    <p>@Message</p>
+    @if (Action.HasDelegate)
+    {
+        <button class="button button-primary" @onclick="Action">@ActionLabel</button>
+    }
+</section>
+
+@code {
+    [Parameter] public string Eyebrow { get; set; } = "No data";
+    [Parameter] public string Title { get; set; } = "Nothing to review yet.";
+    [Parameter] public string Message { get; set; } = "Run a controlled test to begin building evidence.";
+    [Parameter] public string ActionLabel { get; set; } = "Start a test";
+    [Parameter] public EventCallback Action { get; set; }
+}

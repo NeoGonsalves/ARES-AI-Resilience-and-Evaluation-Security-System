@@ -1,0 +1,13 @@
+@using Ares.Web.Models
+
+<article class="metric-card">
+    <div class="metric-card-top">
+        <span class="metric-label">@Metric.Label</span>
+        <span class="metric-state metric-@Metric.Status.ToString().ToLowerInvariant()">@Metric.Status</span>
+    </div>
+    <strong class="metric-value">@Metric.Value</strong>
+    <p class="metric-change trend-@Metric.Trend"><span aria-hidden="true">@(Metric.Trend == "up" ? "↑" : "↓")</span> @Metric.Change</p>
+    <p class="metric-description">@Metric.Description</p>
+</article>
+
+@code { [Parameter, EditorRequired] public MetricValue Metric { get; set; } = default!; }

@@ -1,0 +1,191 @@
+@page "/arena"
+@implements IDisposable
+@inject IAresApiClient Api
+
+<PageTitle>ARES Arena · ARES</PageTitle>
+
+<section class="page-intro arena-intro">
+    <div><p class="eyebrow">Controlled red-team workspace</p><h1>ARES Arena</h1><p>Evaluate prompts against safe adversarial scenarios, compare hardening, and retain evidence for the attack corpus.</p></div>
+    <div class="arena-guardrail"><span class="status-dot operational" aria-hidden="true"></span><div><strong>Isolated mock mode</strong><small>No external provider calls or sensitive prompt logging.</small></div></div>
+</section>
+
+@if (_loadError is not null)
+{
+    <ErrorState Title="Arena setup could not load" Message="@_loadError" Retry="LoadAsync" />
+}
+else if (_models.Count == 0)
+{
+    <LoadingState Message="Loading safe model configuration…" />
+}
+else
+{
+    <section class="workflow-markers" aria-label="Arena workflow"><span class="active">01 Configure</span><span class="@(IsRunning ? "active" : "")">02 Execute</span><span class="@(HasResult ? "active" : "")">03 Analyse</span></section>
+    <div class="arena-workspace">
+        <article class="surface-card config-panel" aria-labelledby="configure-heading">
+            <div class="section-heading compact"><div><p class="eyebrow">Stage 01</p><h2 id="configure-heading">Configure</h2></div><span class="subtle-code">FORM VALIDATED</span></div>
+            <TestConfigurationForm Configuration="_configuration" Models="_models" Disabled="IsRunning" OnSubmit="RunTestAsync" />
+        </article>
+        <ExecutionPanel Run="_run" Status="CurrentStatus" Progress="_progress" Log="(_run?.Log ?? [])" OnCancel="CancelAsync" />
+    </div>
+
+    <section class="analysis-section" aria-labelledby="analysis-heading">
+        <div class="section-heading"><div><p class="eyebrow">Stage 03</p><h2 id="analysis-heading">Analyse</h2></div>
+            @if (HasResult) { <div class="analysis-actions"><button class="button button-secondary" @onclick="SaveToCorpusAsync">Save to corpus</button><button class="button button-quiet" @onclick="ExportReport">Export report</button></div> }
+        </div>
+        @if (_notice is not null) { <div class="inline-notice success" role="status">@_notice</div> }
+        @if (_run?.Status == TestRunStatus.Failed)
+        {
+            <ErrorState Title="Provider request failed safely" Message="@_run.FailureReason" />
+        }
+        else if (_run?.Status == TestRunStatus.Cancelled)
+        {
+            <EmptyState Eyebrow="Test cancelled" Title="No analysis was produced." Message="The analyst stopped this test before a model response was evaluated. Update the configuration and run it again when ready." />
+        }
+        else if (HasResult && _run?.Analysis is not null)
+        {
+            <div class="analysis-tabs" role="tablist" aria-label="Test analysis">
+                <button role="tab" aria-selected="@(_analysisTab == "summary")" class="@(_analysisTab == "summary" ? "selected" : "")" @onclick="ShowSummary">Summary</button>
+                <button role="tab" aria-selected="@(_analysisTab == "responses")" class="@(_analysisTab == "responses" ? "selected" : "")" @onclick="ShowResponses">Responses</button>
+                <button role="tab" aria-selected="@(_analysisTab == "evidence")" class="@(_analysisTab == "evidence" ? "selected" : "")" @onclick="ShowEvidence">Evidence</button>
+                <button role="tab" aria-selected="@(_analysisTab == "log")" class="@(_analysisTab == "log" ? "selected" : "")" @onclick="ShowLog">Execution log</button>
+            </div>
+            @if (_analysisTab == "summary")
+            {
+                <RiskSummary Analysis="_run.Analysis" />
+                <div class="analysis-detail-grid">
+                    <article class="analysis-card"><p class="eyebrow">Runtime classification</p><h3>@_run.Analysis.RuntimeClassification</h3><p>Security analysis is separate from model output and applies the configured mock runtime rules.</p></article>
+                    <article class="analysis-card"><p class="eyebrow">Recommended prompt change</p><h3>@_run.Analysis.Hardening?.Summary</h3><p>@_run.Analysis.Hardening?.RecommendedChange</p></article>
+                </div>
+            }
+            else if (_analysisTab == "responses")
+            {
+                if (_run.Analysis.Comparison is not null) { <ResponseComparison Comparison="_run.Analysis.Comparison" /> }
+                else { <EmptyState Eyebrow="Comparison disabled" Title="No hardened comparison was requested." Message="Enable the comparison toggle before running the next controlled test." /> }
+            }
+            else if (_analysisTab == "evidence")
+            {
+                <EvidenceList Evidence="_run.Analysis.Evidence" />
+            }
+            else
+            {
+                <div class="full-log" aria-live="polite">@foreach (var item in _run.Log) { <p class="log-@item.Level"><time>@item.Timestamp.ToString("HH:mm:ss.fff")</time><strong>@item.Stage</strong><span>@item.Message</span></p> }</div>
+            }
+        }
+        else
+        {
+            <EmptyState Eyebrow="Awaiting test result" Title="Analysis appears after controlled execution." Message="A completed or blocked test will include risk, detection, evidence, and comparison data." />
+        }
+    </section>
+
+    <section class="history-section" aria-labelledby="history-heading">
+        <div class="section-heading"><div><p class="eyebrow">Arena history</p><h2 id="history-heading">Recent controlled tests</h2></div><span>@_recent.Count test runs</span></div>
+        <RecentTestHistory Tests="_recent" OnSelect="SelectTestAsync" />
+    </section>
+}
+
+@code {
+    private readonly CancellationTokenSource _pageCancellation = new();
+    private CancellationTokenSource? _runCancellation;
+    private ArenaTestConfiguration _configuration = new();
+    private IReadOnlyList<ModelConfiguration> _models = [];
+    private IReadOnlyList<RecentTestItem> _recent = [];
+    private TestRun? _run;
+    private ExecutionProgress _progress = new(0, "Awaiting configuration", "Complete the form to begin a safe simulated run.", 0, 0);
+    private string _analysisTab = "summary";
+    private string? _notice;
+    private string? _loadError;
+
+    private TestRunStatus CurrentStatus => _run?.Status ?? TestRunStatus.Idle;
+    private bool IsRunning => CurrentStatus is TestRunStatus.Queued or TestRunStatus.Running;
+    private bool HasResult => _run?.Analysis is not null;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loadError = null;
+        try
+        {
+            var modelTasks = Enum.GetValues<AiProvider>().Select(provider => Api.GetModelsAsync(provider, _pageCancellation.Token)).ToList();
+            await Task.WhenAll(modelTasks);
+            _models = modelTasks.SelectMany(task => task.Result).ToList();
+            _recent = await Api.GetRecentTestsAsync(_pageCancellation.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch { _loadError = "Model configuration or test history is unavailable. Retry when the API boundary is responsive."; }
+    }
+
+    private async Task RunTestAsync(ArenaTestConfiguration submitted)
+    {
+        if (IsRunning) return;
+        _notice = null; _analysisTab = "summary";
+        _runCancellation?.Cancel(); _runCancellation?.Dispose();
+        _runCancellation = CancellationTokenSource.CreateLinkedTokenSource(_pageCancellation.Token);
+        try
+        {
+            var configuration = CopyConfiguration(submitted);
+            var created = await Api.CreateTestAsync(new CreateTestRequest(configuration), _runCancellation.Token);
+            _run = await Api.GetTestAsync(created.TestId, _runCancellation.Token);
+            _progress = new(2, "Queued", "Configuration accepted; preparing local test execution.", 0, 0);
+            await InvokeAsync(StateHasChanged);
+            var progress = new Progress<ExecutionProgress>(item => { _progress = item; InvokeAsync(StateHasChanged); });
+            _run = await Api.SimulateTestAsync(created.TestId, progress, _runCancellation.Token);
+            _progress = new(100, _run.Status == TestRunStatus.Failed ? "Failed" : "Completed", _run.FailureReason ?? "Controlled test complete.", _run.TokenEstimate, _run.DurationMilliseconds);
+            _recent = await Api.GetRecentTestsAsync(_pageCancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            if (_run is not null && _run.Status != TestRunStatus.Cancelled)
+            {
+                var cancelled = await Api.CancelTestAsync(_run.Id, CancellationToken.None);
+                _run = _run with { Status = cancelled.Status, CompletedAt = DateTimeOffset.UtcNow };
+            }
+            _progress = new(0, "Cancelled", "Test cancelled by analyst.", 0, 0);
+        }
+        catch (Exception exception)
+        {
+            _run = _run is null ? null : _run with { Status = TestRunStatus.Failed, FailureReason = "The mock service could not complete the test safely." };
+            _notice = $"Test did not complete: {exception.GetType().Name}.";
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        if (_run is null || !IsRunning) return;
+        _runCancellation?.Cancel();
+        var cancelled = await Api.CancelTestAsync(_run.Id, CancellationToken.None);
+        _run = _run with { Status = cancelled.Status, CompletedAt = DateTimeOffset.UtcNow };
+        _progress = new(0, "Cancelled", "Test cancelled by analyst.", 0, 0);
+        _recent = await Api.GetRecentTestsAsync(_pageCancellation.Token);
+    }
+
+    private async Task SelectTestAsync(string testId)
+    {
+        var selected = await Api.GetTestAsync(testId, _pageCancellation.Token);
+        if (selected is null) return;
+        _run = selected; _configuration = CopyConfiguration(selected.Configuration); _analysisTab = "summary"; _notice = null;
+        _progress = new(selected.Status is TestRunStatus.Completed or TestRunStatus.Blocked ? 100 : 0, selected.Status.ToLabel(), selected.FailureReason ?? "Historical test result restored.", selected.TokenEstimate, selected.DurationMilliseconds);
+    }
+
+    private async Task SaveToCorpusAsync()
+    {
+        if (_run is null) return;
+        var saved = await Api.SaveAttackToCorpusAsync(new CorpusSaveRequest(_run.Id, "Saved from Week 1 prototype."), _pageCancellation.Token);
+        _notice = $"{saved.AttackId} saved to the mock attack corpus. Correlation ID: {saved.CorrelationId}.";
+    }
+
+    private void ExportReport() => _notice = "Mock report export prepared. Production export will be generated by the FastAPI reporting service.";
+    private void ShowSummary() => _analysisTab = "summary";
+    private void ShowResponses() => _analysisTab = "responses";
+    private void ShowEvidence() => _analysisTab = "evidence";
+    private void ShowLog() => _analysisTab = "log";
+
+    private static ArenaTestConfiguration CopyConfiguration(ArenaTestConfiguration source) => new()
+    {
+        TestName = source.TestName, TargetApplication = source.TargetApplication, SystemPrompt = source.SystemPrompt, UserPrompt = source.UserPrompt,
+        Provider = source.Provider, Model = source.Model, AttackSource = source.AttackSource, AttackCategories = [.. source.AttackCategories],
+        Temperature = source.Temperature, MaxResponseTokens = source.MaxResponseTokens, VariationCount = source.VariationCount, IncludeHardenedComparison = source.IncludeHardenedComparison
+    };
+
+    public void Dispose() { _runCancellation?.Cancel(); _runCancellation?.Dispose(); _pageCancellation.Cancel(); _pageCancellation.Dispose(); }
+}

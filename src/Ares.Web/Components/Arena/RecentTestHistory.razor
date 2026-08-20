@@ -1,0 +1,23 @@
+@using Ares.Web.Models
+
+<div class="history-table-wrap">
+    <table class="data-table history-table">
+        <caption class="sr-only">Recent Arena test history</caption>
+        <thead><tr><th scope="col">Test ID</th><th scope="col">Time</th><th scope="col">Category</th><th scope="col">Provider / model</th><th scope="col">Risk</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+        <tbody>
+            @foreach (var test in Tests)
+            {
+                <tr>
+                    <th scope="row">@test.Id</th><td>@test.Timestamp.ToString("dd MMM, HH:mm")</td><td>@test.Category.ToLabel()</td><td>@test.Provider.ToLabel()<small>@test.Model</small></td>
+                    <td><span class="risk-cell">@(test.RiskScore == 0 ? "—" : test.RiskScore)</span></td><td><span class="table-status status-@test.Status.ToString().ToLowerInvariant()">@test.Status.ToLabel()</span></td>
+                    <td><button class="text-button" @onclick="() => OnSelect.InvokeAsync(test.Id)">View<span class="sr-only"> @test.Id</span></button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<RecentTestItem> Tests { get; set; } = [];
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+}

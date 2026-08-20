@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ares.Web", "src\Ares.Web\Ares.Web.csproj", "{F482ED51-5D61-44E2-A5EC-8D6387B06F49}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ares.Web.Tests", "tests\Ares.Web.Tests\Ares.Web.Tests.csproj", "{C088E87D-8EE0-4CB9-9930-DFD416161B14}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F482ED51-5D61-44E2-A5EC-8D6387B06F49}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F482ED51-5D61-44E2-A5EC-8D6387B06F49}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F482ED51-5D61-44E2-A5EC-8D6387B06F49}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F482ED51-5D61-44E2-A5EC-8D6387B06F49}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C088E87D-8EE0-4CB9-9930-DFD416161B14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C088E87D-8EE0-4CB9-9930-DFD416161B14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C088E87D-8EE0-4CB9-9930-DFD416161B14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C088E87D-8EE0-4CB9-9930-DFD416161B14}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,15 @@
+@using Ares.Web.Models
+
+<div class="response-comparison">
+    <article class="response-card baseline-response">
+        <div class="response-heading"><span>Baseline response</span><span class="response-type">MODEL OUTPUT</span></div>
+        <p>@Comparison.BaselineResponse</p>
+    </article>
+    <article class="response-card hardened-response">
+        <div class="response-heading"><span>Hardened response</span><span class="response-type">MODEL OUTPUT</span></div>
+        <p>@Comparison.HardenedResponse</p>
+    </article>
+    <p class="comparison-note"><strong>Security analysis:</strong> @Comparison.DifferenceSummary</p>
+</div>
+
+@code { [Parameter, EditorRequired] public Ares.Web.Models.ResponseComparison Comparison { get; set; } = default!; }

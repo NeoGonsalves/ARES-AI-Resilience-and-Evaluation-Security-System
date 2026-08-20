@@ -1,0 +1,9 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+appsettings.Development.local.json
+.env
+.dotnet/
+.dotnet-cli-home/

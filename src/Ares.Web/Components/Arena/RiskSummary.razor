@@ -1,0 +1,22 @@
+@using Ares.Web.Models
+
+<section class="risk-summary" aria-label="Security analysis summary">
+    <div class="risk-score risk-@Analysis.Severity.ToString().ToLowerInvariant()">
+        <span>Overall risk</span>
+        <strong>@Analysis.RiskScore</strong><small>/100</small>
+    </div>
+    <div class="risk-copy">
+        <SeverityBadge Value="Analysis.Severity" />
+        <h3>@(Analysis.AttackSucceeded ? "Attack succeeded in the baseline path" : "Attack contained")</h3>
+        <p>@Analysis.RuntimeClassification</p>
+    </div>
+    <div class="risk-detections">
+        <span class="metric-label">Triggered rules</span>
+        @foreach (var detection in Analysis.Detections.Where(detection => detection.Triggered))
+        {
+            <span class="rule-tag">@detection.RuleId · @detection.Name</span>
+        }
+    </div>
+</section>
+
+@code { [Parameter, EditorRequired] public SecurityClassification Analysis { get; set; } = default!; }

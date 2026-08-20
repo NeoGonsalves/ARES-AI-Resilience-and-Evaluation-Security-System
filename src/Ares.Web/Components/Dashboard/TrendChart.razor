@@ -1,0 +1,31 @@
+@using Ares.Web.Models
+
+<div class="trend-legend" aria-label="Chart legend">
+    <span><i class="legend-mark tested"></i>Attacks tested</span>
+    <span><i class="legend-mark blocked"></i>Attacks blocked</span>
+    <span><i class="legend-mark successful"></i>Successful attacks</span>
+    <span><i class="legend-mark incidents"></i>Runtime incidents</span>
+</div>
+<div class="chart-wrap" role="img" aria-label="Four series security trend over the last 14 days">
+    <svg class="trend-chart" viewBox="0 0 700 260" preserveAspectRatio="none">
+        @for (var row = 0; row < 4; row++)
+        {
+            <line x1="32" y1="@(24 + row * 56)" x2="690" y2="@(24 + row * 56)" class="chart-grid" />
+        }
+        <polyline points="@Points(point => point.Tested)" class="chart-line tested" />
+        <polyline points="@Points(point => point.Blocked)" class="chart-line blocked" />
+        <polyline points="@Points(point => point.Successful)" class="chart-line successful" />
+        <polyline points="@Points(point => point.Incidents)" class="chart-line incidents" />
+    </svg>
+</div>
+<div class="chart-axis" aria-hidden="true"><span>@(Data.Count > 0 ? Data[0].Date.ToString("dd MMM") : "—")</span><span>@(Data.Count > 0 ? Data[^1].Date.ToString("dd MMM") : "—")</span></div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<TrendPoint> Data { get; set; } = [];
+    private string Points(Func<TrendPoint, int> value)
+    {
+        if (Data.Count == 0) return string.Empty;
+        const double max = 120;
+        return string.Join(" ", Data.Select((item, index) => $"{32 + index * (658d / Math.Max(1, Data.Count - 1)):0.##},{236 - value(item) / max * 208:0.##}"));
+    }
+}

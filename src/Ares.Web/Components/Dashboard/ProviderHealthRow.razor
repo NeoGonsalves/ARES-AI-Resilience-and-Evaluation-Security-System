@@ -1,0 +1,9 @@
+@using Ares.Web.Models
+
+<li class="provider-row">
+    <span class="provider-name">@Health.Name</span>
+    <span class="provider-detail">@Health.Detail</span>
+    <span class="provider-status provider-@Health.Status.ToString().ToLowerInvariant()"><span class="status-dot @Health.Status.ToString().ToLowerInvariant()" aria-hidden="true"></span>@Health.Status</span>
+</li>
+
+@code { [Parameter, EditorRequired] public ProviderHealth Health { get; set; } = default!; }

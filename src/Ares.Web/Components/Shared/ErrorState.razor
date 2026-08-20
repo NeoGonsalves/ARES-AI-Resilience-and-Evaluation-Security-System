@@ -1,0 +1,15 @@
+<section class="error-state" role="alert">
+    <p class="eyebrow">Data unavailable</p>
+    <h2>@Title</h2>
+    <p>@Message</p>
+    @if (Retry.HasDelegate)
+    {
+        <button class="button button-secondary" @onclick="Retry">Retry</button>
+    }
+</section>
+
+@code {
+    [Parameter] public string Title { get; set; } = "We could not load this data.";
+    [Parameter] public string Message { get; set; } = "Check the service connection and try again.";
+    [Parameter] public EventCallback Retry { get; set; }
+}

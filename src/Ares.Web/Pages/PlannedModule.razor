@@ -1,0 +1,22 @@
+@page "/attack-corpus"
+@page "/runtime-incidents"
+@page "/prompt-configurations"
+@page "/reports"
+@page "/settings"
+
+<PageTitle>Planned module · ARES</PageTitle>
+
+<section class="planned-module">
+    <p class="eyebrow">Week 1 / planned module</p>
+    <h1>@ModuleName</h1>
+    <p>This area has a prepared route and shell, but its detailed workflow belongs to a later delivery. The Dashboard and ARES Arena are fully interactive in this prototype.</p>
+    <a class="button button-primary" href="/arena">Open ARES Arena</a>
+</section>
+
+@code {
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    private string ModuleName => NavigationManager.Uri.Split('/').Last() switch
+    {
+        "attack-corpus" => "Attack Corpus", "runtime-incidents" => "Runtime Incidents", "prompt-configurations" => "Prompt Configurations", "reports" => "Reports", _ => "Settings"
+    };
+}

@@ -1,0 +1,106 @@
+@using Ares.Web.Models
+
+<EditForm Model="Configuration" OnValidSubmit="Submit" class="configuration-form">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="validation-summary" />
+    <div class="form-grid two-col">
+        <div class="field-group">
+            <label for="test-name">Test name</label>
+            <InputText id="test-name" @bind-Value="Configuration.TestName" />
+            <ValidationMessage For="@(() => Configuration.TestName)" />
+        </div>
+        <div class="field-group">
+            <label for="target-app">Target application</label>
+            <InputText id="target-app" @bind-Value="Configuration.TargetApplication" />
+            <ValidationMessage For="@(() => Configuration.TargetApplication)" />
+        </div>
+    </div>
+    <div class="field-group">
+        <label for="system-prompt">Target system prompt</label>
+        <InputTextArea id="system-prompt" @bind-Value="Configuration.SystemPrompt" rows="4" />
+        <p class="field-help">Test content stays in this browser session for the mock; audit logs use redacted summaries.</p>
+        <ValidationMessage For="@(() => Configuration.SystemPrompt)" />
+    </div>
+    <div class="field-group">
+        <label for="user-prompt">User or test prompt</label>
+        <InputTextArea id="user-prompt" @bind-Value="Configuration.UserPrompt" rows="3" />
+        <ValidationMessage For="@(() => Configuration.UserPrompt)" />
+    </div>
+    <div class="form-grid three-col">
+        <div class="field-group">
+            <label for="provider">AI provider</label>
+            <select id="provider" value="@Configuration.Provider" @onchange="ChangeProvider">
+                @foreach (var provider in Enum.GetValues<AiProvider>())
+                {
+                    <option value="@provider">@provider.ToLabel()</option>
+                }
+            </select>
+        </div>
+        <div class="field-group">
+            <label for="model">Model</label>
+            <select id="model" @bind="Configuration.Model">
+                @foreach (var model in FilteredModels)
+                {
+                    <option value="@model.Id" disabled="@(!model.IsAvailable)">@model.DisplayName@(!model.IsAvailable ? " — unavailable" : "")</option>
+                }
+            </select>
+        </div>
+        <div class="field-group">
+            <label for="attack-source">Attack source</label>
+            <select id="attack-source" @bind="Configuration.AttackSource">
+                @foreach (var source in Enum.GetValues<AttackSource>()) { <option value="@source">@source</option> }
+            </select>
+        </div>
+    </div>
+    <fieldset class="field-group category-fieldset">
+        <legend>Attack categories</legend>
+        <p class="field-help">Select one or more controlled techniques to evaluate.</p>
+        <div class="category-options">
+            @foreach (var category in Enum.GetValues<AttackCategory>())
+            {
+                <label class="check-chip"><input type="checkbox" checked="@Configuration.AttackCategories.Contains(category)" @onchange="_ => ToggleCategory(category)" /> <span>@category.ToLabel()</span></label>
+            }
+        </div>
+        <ValidationMessage For="@(() => Configuration.AttackCategories)" />
+    </fieldset>
+    <div class="form-grid settings-grid">
+        <div class="field-group range-field">
+            <label for="temperature">Temperature <output>@Configuration.Temperature.ToString("0.0")</output></label>
+            <input id="temperature" type="range" min="0" max="2" step="0.1" @bind="Configuration.Temperature" />
+        </div>
+        <div class="field-group">
+            <label for="max-tokens">Maximum response length</label>
+            <InputNumber id="max-tokens" @bind-Value="Configuration.MaxResponseTokens" />
+        </div>
+        <div class="field-group">
+            <label for="variations">Test variations</label>
+            <InputNumber id="variations" @bind-Value="Configuration.VariationCount" />
+        </div>
+    </div>
+    <label class="toggle-field"><InputCheckbox @bind-Value="Configuration.IncludeHardenedComparison" /> <span>Include hardened prompt comparison</span></label>
+    <div class="form-actions">
+        <button type="submit" class="button button-primary" disabled="@Disabled">Run controlled test</button>
+        <span class="field-help">Uses deterministic mock data. No provider request is sent.</span>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter, EditorRequired] public ArenaTestConfiguration Configuration { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<ModelConfiguration> Models { get; set; } = [];
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<ArenaTestConfiguration> OnSubmit { get; set; }
+    private IEnumerable<ModelConfiguration> FilteredModels => Models.Where(model => model.Provider == Configuration.Provider);
+    private Task Submit() => OnSubmit.InvokeAsync(Configuration);
+    private void ToggleCategory(AttackCategory category)
+    {
+        if (!Configuration.AttackCategories.Remove(category)) Configuration.AttackCategories.Add(category);
+    }
+    private void ChangeProvider(ChangeEventArgs args)
+    {
+        if (Enum.TryParse<AiProvider>(args.Value?.ToString(), out var provider))
+        {
+            Configuration.Provider = provider;
+            Configuration.Model = Models.First(model => model.Provider == provider).Id;
+        }
+    }
+}

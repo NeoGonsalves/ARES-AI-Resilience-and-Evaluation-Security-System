@@ -1,0 +1,15 @@
+@using Ares.Web.Models
+
+<div class="evidence-list">
+    @foreach (var item in Evidence)
+    {
+        <article class="evidence-item">
+            <div><span class="evidence-source">@item.Source</span><h3>@item.Id</h3></div>
+            <span class="similarity">@item.Similarity.ToString("P0") match</span>
+            <p>@item.Summary</p>
+            <small>@item.Category.ToLabel() · Retrieved @item.RetrievedAt.ToString("HH:mm")</small>
+        </article>
+    }
+</div>
+
+@code { [Parameter, EditorRequired] public IReadOnlyList<EvidenceItem> Evidence { get; set; } = []; }

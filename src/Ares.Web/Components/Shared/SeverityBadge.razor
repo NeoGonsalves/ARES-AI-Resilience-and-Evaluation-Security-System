@@ -1,0 +1,7 @@
+@using Ares.Web.Models
+
+<span class="severity severity-@Value.ToString().ToLowerInvariant()" aria-label="Severity: @Value">@Value</span>
+
+@code {
+    [Parameter, EditorRequired] public Severity Value { get; set; }
+}

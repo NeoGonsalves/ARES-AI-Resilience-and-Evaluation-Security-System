@@ -1,0 +1,44 @@
+@using Ares.Web.Models
+
+<section class="execution-panel" aria-labelledby="execution-heading">
+    <div class="panel-heading">
+        <div><p class="eyebrow">Stage 02</p><h2 id="execution-heading">Execute</h2></div>
+        <span class="run-status status-@Status.ToString().ToLowerInvariant()"><span class="status-dot @Status.ToString().ToLowerInvariant()" aria-hidden="true"></span>@Status.ToLabel()</span>
+    </div>
+    @if (Status == TestRunStatus.Idle)
+    {
+        <div class="execution-idle"><p>Configure a controlled test, then start execution. Results will appear here without calling an AI provider.</p><span class="subtle-code">READY / LOCAL MOCK</span></div>
+    }
+    else
+    {
+        <div class="execution-progress" aria-live="polite">
+            <div class="progress-label"><span>@Progress.Stage</span><strong>@Progress.Percent%</strong></div>
+            <div class="progress-track"><span style="width: @Progress.Percent%"></span></div>
+            <p>@Progress.Message</p>
+        </div>
+        <dl class="execution-stats">
+            <div><dt>Provider</dt><dd>@Run?.Configuration.Provider.ToLabel()</dd></div>
+            <div><dt>Model</dt><dd>@Run?.Configuration.Model</dd></div>
+            <div><dt>Duration</dt><dd>@(Progress.DurationMilliseconds > 0 ? $"{Progress.DurationMilliseconds / 1000d:0.0}s" : "—")</dd></div>
+            <div><dt>Token estimate</dt><dd>@(Progress.TokenEstimate > 0 ? Progress.TokenEstimate.ToString() : "—")</dd></div>
+        </dl>
+        @if (Status == TestRunStatus.Running || Status == TestRunStatus.Queued)
+        {
+            <button class="button button-secondary" @onclick="OnCancel">Cancel test</button>
+        }
+    }
+    <div class="execution-log-mini" aria-label="Recent execution log">
+        @foreach (var item in Log.TakeLast(4))
+        {
+            <p class="log-@item.Level"><time>@item.Timestamp.ToString("HH:mm:ss")</time><span>@item.Stage</span>@item.Message</p>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter] public TestRun? Run { get; set; }
+    [Parameter] public TestRunStatus Status { get; set; } = TestRunStatus.Idle;
+    [Parameter] public ExecutionProgress Progress { get; set; } = new(0, "Awaiting configuration", "", 0, 0);
+    [Parameter] public IReadOnlyList<ExecutionLogEvent> Log { get; set; } = [];
+    [Parameter] public EventCallback OnCancel { get; set; }
+}
