@@ -101,3 +101,53 @@ public sealed record CancelTestResponse(string TestId, TestRunStatus Status, str
 public sealed record CorpusSaveRequest(string TestId, string? AnalystNote);
 public sealed record CorpusSaveResponse(string AttackId, string TestId, DateTimeOffset SavedAt, string CorrelationId);
 public sealed record ApiError(string Code, string Message, string CorrelationId, IReadOnlyDictionary<string, string[]>? ValidationErrors, bool Retryable);
+
+// Qdrant Vector Corpus & RAG Schemas
+public sealed record AttackCorpusPayload(
+    [property: JsonPropertyName("attack_id")] string AttackId,
+    [property: JsonPropertyName("test_id")] string TestId,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("category")] AttackCategory Category,
+    [property: JsonPropertyName("severity")] Severity Severity,
+    [property: JsonPropertyName("source")] AttackSource Source,
+    [property: JsonPropertyName("sanitized_prompt")] string SanitizedPrompt,
+    [property: JsonPropertyName("prompt_sha256")] string PromptSha256,
+    [property: JsonPropertyName("target_providers")] IReadOnlyList<AiProvider> TargetProviders,
+    [property: JsonPropertyName("success_rate")] double SuccessRate,
+    [property: JsonPropertyName("analyst_note")] string? AnalystNote,
+    [property: JsonPropertyName("is_redacted")] bool IsRedacted,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt);
+
+public sealed record DefenseHeuristicPayload(
+    [property: JsonPropertyName("heuristic_id")] string HeuristicId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("target_category")] AttackCategory TargetCategory,
+    [property: JsonPropertyName("severity_tier")] Severity SeverityTier,
+    [property: JsonPropertyName("framing_rule")] string FramingRule,
+    [property: JsonPropertyName("recommended_template")] string RecommendedTemplate,
+    [property: JsonPropertyName("effectiveness_score")] int EffectivenessScore,
+    [property: JsonPropertyName("provider_compatibility")] IReadOnlyList<AiProvider> ProviderCompatibility,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt);
+
+public sealed record QdrantVectorPoint<TPayload>(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("vector")] IReadOnlyList<float> Vector,
+    [property: JsonPropertyName("payload")] TPayload Payload);
+
+public sealed record QdrantSearchQuery(
+    [property: JsonPropertyName("collection_name")] string CollectionName,
+    [property: JsonPropertyName("vector")] IReadOnlyList<float> Vector,
+    [property: JsonPropertyName("limit")] int Limit = 5,
+    [property: JsonPropertyName("score_threshold")] double ScoreThreshold = 0.75,
+    [property: JsonPropertyName("filter_category")] AttackCategory? FilterCategory = null);
+
+public sealed record QdrantSearchResult<TPayload>(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("score")] double Score,
+    [property: JsonPropertyName("payload")] TPayload Payload);
+
+public sealed record RagRetrievalResult(
+    IReadOnlyList<QdrantSearchResult<AttackCorpusPayload>> MatchedAttacks,
+    IReadOnlyList<QdrantSearchResult<DefenseHeuristicPayload>> ApplicableDefenses,
+    double MaxRiskScore,
+    DateTimeOffset RetrievedAt);
