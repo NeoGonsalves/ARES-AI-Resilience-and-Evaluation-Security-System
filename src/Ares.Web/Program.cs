@@ -9,6 +9,7 @@ builder.Logging.AddConsole();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddSingleton<IAresApiClient, MockAresApiClient>();
+builder.Services.AddSingleton<IQdrantCorpusService, MockQdrantCorpusService>();
 
 var app = builder.Build();
 
