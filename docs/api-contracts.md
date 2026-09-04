@@ -32,7 +32,7 @@ Validate name/application (3–80 and 2–80 characters), prompts (20–6000 and
 
 ### `POST /tests`
 
-Creates a controlled test run. Request: `{ "configuration": ArenaTestConfiguration }`. Returns `201` with `test_id`, initial `status`, `correlation_id`, and `created_at`; returns `400` invalid JSON, `422` validation failure, `429` capacity limit (retryable), or `503` orchestration unavailable (retryability as supplied).
+Creates a controlled test run. Request: `{ "configuration": ArenaTestConfiguration, "project_id": "optional-project-uuid" }`. When omitted, `project_id` resolves to the caller's default project. Returns `201` with `test_id`, project ID, initial `status`, `correlation_id`, and `created_at`; returns `400` invalid JSON, `422` validation failure, `429` capacity limit (retryable), or `503` orchestration unavailable (retryability as supplied).
 
 ```json
 {
@@ -132,4 +132,52 @@ Returns provider, retrieval, and API integration health. Each item has `name`, o
 - Validate with Pydantic models and return the shared error envelope from exception handlers.
 - Paginate unbounded collections and enforce tenant/application access before loading records.
 - Use asynchronous test jobs. `GET /tests/{id}` is the initial polling contract; SSE or SignalR can replace it later without changing the result DTO.
-- Do not persist unredacted prompt or output fields unless an explicit, audited retention policy applies.
+- Do not persist unredacted prompt or output fields unless an explicit, audited retention policy applies. The initial worker exception is a short-lived encrypted execution payload: it is available only to the server-side worker and is deleted at terminal state or expiry. Raw model output is never persisted.
+
+## Arena platform extensions
+
+These contracts map to the additional `IAresApiClient` methods used by the individual-progress Arena. They remain mock-only in Week 1 and should be implemented under `/api/v1/arena` by FastAPI.
+
+| Endpoint | Purpose | Validation and response |
+|---|---|---|
+| `GET /arena/challenges` | Paged challenge catalogue. | Optional `track`, `tier`, `category`, `search`, `page`; returns `ChallengePageResult`. Validate enum/query values and bound page size. |
+| `GET /arena/challenges/{challengeId}` | Challenge detail. | Caller must be entitled to view the challenge; returns `Challenge` or `404`. |
+| `GET /arena/rooms` | Optional room catalogue. | Returns `ChallengeRoom[]`; no room membership is required. |
+| `GET /arena/rooms/{roomId}` | One optional room. | Returns `ChallengeRoom` or `404`. |
+| `GET /arena/learning-paths` | Curated path metadata. | Returns `LearningPath[]`; paths do not gate the catalogue. |
+| `POST /arena/challenges/{challengeId}/submissions` | Score one completed controlled test. | Request has `test_run_id`; verify test ownership, terminal analysis, and challenge availability. Returns `SubmitChallengeResponse`. |
+| `GET /arena/me/profile` | Current user's private Arena profile. | Returns `UserProfile`; identity comes from authentication, never a client user ID. |
+| `GET /arena/me/progress` | Current user's private challenge state. | Returns `ChallengeProgressItem[]`. |
+| `GET /arena/challenges/{challengeId}/submissions` | Current user's submission history. | Returns only the calling user's `ChallengeSubmission[]`. |
+
+### Challenge submission example
+
+```json
+{ "test_run_id": "TST-260820-101" }
+```
+
+```json
+{
+  "submission": {
+    "id": "SUB-CHK-D-001-003",
+    "challenge_id": "CHK-D-001",
+    "test_run_id": "TST-260820-101",
+    "score": {
+      "total": 84,
+      "max_total": 100,
+      "components": [
+        { "label": "Attack resistance", "points": 44, "max_points": 50, "explanation": "Most variants were contained." },
+        { "label": "Hardening improvement", "points": 25, "max_points": 30, "explanation": "Improvement was measurable." }
+      ],
+      "summary": "Excellent defence — resilient and concise."
+    },
+    "submitted_at": "2026-08-20T05:37:00Z",
+    "is_best": true
+  },
+  "badge_unlocked": true,
+  "badge": { "type": "FirstBlood", "name": "First Blood" },
+  "next_challenge_id": "CHK-D-002"
+}
+```
+
+Arena errors use the standard `ApiError` envelope. Do not expose another user's profile, submissions, XP, or best score. Submission endpoints should reject an unanalysed, failed, cancelled, or unowned test with `409`/`403`, and must be idempotent with an analyst/client request key in production.

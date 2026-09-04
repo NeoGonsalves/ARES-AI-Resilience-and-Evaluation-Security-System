@@ -1,0 +1,144 @@
+@page "/arena"
+@implements IDisposable
+@inject IAresApiClient Api
+
+<PageTitle>ARES Arena · ARES</PageTitle>
+
+<section class="page-intro arena-intro">
+    <div>
+        <p class="eyebrow">AI security skills platform</p>
+        <h1>ARES Arena</h1>
+        <p>Train as an attacker or defender. Earn XP, unlock challenges, and prove your prompt engineering skills against real adversarial scenarios.</p>
+    </div>
+    <div class="arena-guardrail">
+        <span class="status-dot operational" aria-hidden="true"></span>
+        <div><strong>Isolated mock mode</strong><small>No external provider calls or sensitive prompt logging.</small></div>
+    </div>
+</section>
+
+@if (_profile is null || _paths is null)
+{
+    <LoadingState Message="Loading your Arena profile…" />
+}
+else
+{
+    <!-- Track selection -->
+    <section class="hub-tracks" aria-labelledby="tracks-heading">
+        <div class="section-heading compact">
+            <div><p class="eyebrow">Choose your role</p><h2 id="tracks-heading">Select a track</h2></div>
+        </div>
+        <div class="track-cards">
+            <article class="track-card track-attacker">
+                <div class="track-card-icon" aria-hidden="true">⚔</div>
+                <div>
+                    <h3>Attacker</h3>
+                    <p>Craft adversarial prompts to jailbreak, extract secrets, bypass policies, and manipulate model behaviour.</p>
+                    <ul class="track-bullets">
+                        <li>Direct &amp; indirect prompt injection</li>
+                        <li>System prompt extraction</li>
+                        <li>Data exfiltration &amp; policy bypass</li>
+                        <li>Role manipulation &amp; encoding attacks</li>
+                    </ul>
+                </div>
+                <a class="button button-primary" href="/arena/challenges?track=Attacker">Start attacking</a>
+            </article>
+            <article class="track-card track-defender">
+                <div class="track-card-icon" aria-hidden="true">🛡</div>
+                <div>
+                    <h3>Defender</h3>
+                    <p>Write hardened system prompts that resist the full ARES attack battery. Scored on resilience, improvement, and brevity.</p>
+                    <ul class="track-bullets">
+                        <li>System prompt hardening</li>
+                        <li>Multi-vector defence</li>
+                        <li>Efficiency-scored challenges</li>
+                        <li>Agentic trust boundaries</li>
+                    </ul>
+                </div>
+                <a class="button button-primary" href="/arena/challenges?track=Defender">Start defending</a>
+            </article>
+        </div>
+    </section>
+
+    <!-- Profile snapshot -->
+    <section class="hub-profile-snap" aria-labelledby="profile-snap-heading">
+        <div class="section-heading compact">
+            <div><p class="eyebrow">Your progress</p><h2 id="profile-snap-heading">Quick stats</h2></div>
+            <a class="button button-secondary" href="/arena/profile">View full profile</a>
+        </div>
+        <div class="hub-stats-grid">
+            <div class="hub-stat">
+                <span class="hub-stat-value">@_profile.ChallengesSolved</span>
+                <span class="hub-stat-label">Challenges solved</span>
+            </div>
+            <div class="hub-stat">
+                <span class="hub-stat-value">@_profile.AttackerSolved</span>
+                <span class="hub-stat-label">Attacker solved</span>
+            </div>
+            <div class="hub-stat">
+                <span class="hub-stat-value">@_profile.DefenderSolved</span>
+                <span class="hub-stat-label">Defender solved</span>
+            </div>
+            <div class="hub-stat">
+                <span class="hub-stat-value">@_profile.Badges.Count</span>
+                <span class="hub-stat-label">Badges earned</span>
+            </div>
+        </div>
+        <XpProgressBar Level="@_profile.Level" XpThisLevel="@_profile.XpThisLevel"
+                       XpToNextLevel="@_profile.XpToNextLevel" XpTotal="@_profile.XpTotal" />
+    </section>
+
+    <!-- Learning paths -->
+    <section class="hub-paths" aria-labelledby="paths-heading">
+        <div class="section-heading compact">
+            <div><p class="eyebrow">Guided journey</p><h2 id="paths-heading">Learning paths</h2></div>
+            <a class="button button-quiet" href="/arena/rooms">Explore optional rooms →</a>
+        </div>
+        <div class="paths-grid">
+            @foreach (var path in _paths)
+            {
+                <article class="path-card" style="--path-colour: @path.Colour">
+                    <div class="path-card-header">
+                        <span class="path-colour-dot" aria-hidden="true"></span>
+                        <h3>@path.Name</h3>
+                    </div>
+                    <p>@path.Description</p>
+                    <div class="path-meta">
+                        <span>@path.RoomIds.Count rooms</span>
+                        <span>Badge: @path.BadgeAwarded</span>
+                    </div>
+                    <a class="button button-secondary" href="/arena/rooms">Explore optional rooms</a>
+                </article>
+            }
+        </div>
+    </section>
+
+    <!-- Free-play shortcut -->
+    <section class="hub-freeplay" aria-labelledby="freeplay-heading">
+        <div class="section-heading compact">
+            <div><p class="eyebrow">Advanced</p><h2 id="freeplay-heading">Free-play workspace</h2></div>
+        </div>
+        <p>Run custom red-team tests without challenge constraints. Full configuration — choose provider, model, attack category, and analysis depth.</p>
+        <a class="button button-secondary" href="/arena/workspace">Open free-play workspace</a>
+    </section>
+}
+
+@code {
+    private UserProfile? _profile;
+    private IReadOnlyList<LearningPath>? _paths;
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var profileTask = Api.GetMyProfileAsync(_cts.Token);
+            var pathsTask = Api.GetLearningPathsAsync(_cts.Token);
+            await Task.WhenAll(profileTask, pathsTask);
+            _profile = profileTask.Result;
+            _paths = pathsTask.Result;
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public void Dispose() { _cts.Cancel(); _cts.Dispose(); }
+}

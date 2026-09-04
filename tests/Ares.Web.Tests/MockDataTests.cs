@@ -76,4 +76,33 @@ public sealed class MockDataTests
         Assert.Equal(TestRunStatus.Cancelled, cancellation.Status);
         Assert.Equal(TestRunStatus.Cancelled, result!.Status);
     }
+
+    [Fact]
+    public async Task Challenge_submission_updates_only_the_private_profile_progress()
+    {
+        var client = new MockAresApiClient();
+        var before = await client.GetMyProfileAsync(CancellationToken.None);
+
+        var submission = await client.SubmitChallengeAsync(new SubmitChallengeRequest("CHK-A-001", "TST-260820-100"), CancellationToken.None);
+        var after = await client.GetMyProfileAsync(CancellationToken.None);
+        var progress = await client.GetMyProgressAsync(CancellationToken.None);
+
+        Assert.True(submission.Submission.Score.Total > 0);
+        Assert.Equal(before.XpTotal + submission.Submission.Score.Total, after.XpTotal);
+        Assert.Equal(before.AttackerSolved + 1, after.AttackerSolved);
+        Assert.Contains(progress, item => item.ChallengeId == "CHK-A-001" && item.Status == ChallengeStatus.Completed);
+    }
+
+    [Fact]
+    public async Task Rooms_remain_optional_collections()
+    {
+        var client = new MockAresApiClient();
+
+        var rooms = await client.GetRoomsAsync(CancellationToken.None);
+        var catalogue = await client.GetChallengesAsync(null, null, null, null, 1, CancellationToken.None);
+
+        Assert.NotEmpty(rooms);
+        Assert.NotEmpty(catalogue.Items);
+        Assert.Contains(rooms, room => room.PrerequisiteRoomIds.Count == 0);
+    }
 }

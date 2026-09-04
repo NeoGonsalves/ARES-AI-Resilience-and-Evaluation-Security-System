@@ -16,7 +16,7 @@ else if (_summary is not null)
 {
     <section class="page-intro dashboard-intro">
         <div><p class="eyebrow">Security posture / 14-day view</p><h1>Control surface</h1><p>Protected applications, attack outcomes, and enforcement signals in one operational view.</p></div>
-        <div class="intro-meta"><span>Last refreshed</span><strong>@_summary.GeneratedAt.ToString("dd MMM yyyy, HH:mm") IST</strong><button class="text-button" @onclick="LoadAsync">Refresh mock data</button></div>
+        <div class="intro-meta"><span>Last refreshed</span><strong>@_summary.GeneratedAt.ToString("dd MMM yyyy, HH:mm") IST</strong><button class="text-button" @onclick="LoadAsync">Refresh data</button></div>
     </section>
 
     @if (_summary.IsPartial)
@@ -111,7 +111,7 @@ else if (_summary is not null)
             _incidents = await incidentsTask; _hardening = await hardeningTask; _providers = await providersTask;
         }
         catch (OperationCanceledException) { }
-        catch { _error = "Unable to retrieve mock dashboard data."; }
+        catch { _error = "Unable to retrieve dashboard data from the ARES API."; }
         finally { _loading = false; }
     }
 

@@ -18,7 +18,7 @@
     <div class="field-group">
         <label for="system-prompt">Target system prompt</label>
         <InputTextArea id="system-prompt" @bind-Value="Configuration.SystemPrompt" rows="4" />
-        <p class="field-help">Test content stays in this browser session for the mock; audit logs use redacted summaries.</p>
+        <p class="field-help">Test content is encrypted only while the server-side worker executes; audit records use redacted summaries.</p>
         <ValidationMessage For="@(() => Configuration.SystemPrompt)" />
     </div>
     <div class="field-group">
@@ -30,7 +30,7 @@
         <div class="field-group">
             <label for="provider">AI provider</label>
             <select id="provider" value="@Configuration.Provider" @onchange="ChangeProvider">
-                @foreach (var provider in Enum.GetValues<AiProvider>())
+                @foreach (var provider in AvailableProviders)
                 {
                     <option value="@provider">@provider.ToLabel()</option>
                 }
@@ -80,7 +80,7 @@
     <label class="toggle-field"><InputCheckbox @bind-Value="Configuration.IncludeHardenedComparison" /> <span>Include hardened prompt comparison</span></label>
     <div class="form-actions">
         <button type="submit" class="button button-primary" disabled="@Disabled">Run controlled test</button>
-        <span class="field-help">Uses deterministic mock data. No provider request is sent.</span>
+        <span class="field-help">Runs through the configured server-side provider adapter. Provider credentials never enter this browser.</span>
     </div>
 </EditForm>
 
@@ -90,6 +90,7 @@
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public EventCallback<ArenaTestConfiguration> OnSubmit { get; set; }
     private IEnumerable<ModelConfiguration> FilteredModels => Models.Where(model => model.Provider == Configuration.Provider);
+    private IEnumerable<AiProvider> AvailableProviders => Models.Select(model => model.Provider).Distinct();
     private Task Submit() => OnSubmit.InvokeAsync(Configuration);
     private void ToggleCategory(AttackCategory category)
     {

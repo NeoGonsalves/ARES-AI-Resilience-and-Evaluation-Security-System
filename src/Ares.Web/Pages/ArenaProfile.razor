@@ -1,0 +1,59 @@
+@page "/arena/profile"
+@implements IDisposable
+@inject IAresApiClient Api
+
+<PageTitle>My Arena Progress · ARES</PageTitle>
+
+@if (_profile is null || _progress is null)
+{
+    <LoadingState Message="Loading your private Arena progress…" />
+}
+else
+{
+    <section class="page-intro profile-intro">
+        <div><p class="eyebrow">ARES Arena / individual progress</p><h1>@_profile.DisplayName</h1><p>Your attempts, XP, badges, and progression are private to your profile. ARES does not provide a public leaderboard.</p></div>
+        <a class="button button-quiet" href="/arena">Back to Arena hub</a>
+    </section>
+
+    <section class="profile-overview" aria-label="Individual progress summary">
+        <article class="surface-card profile-level"><p class="eyebrow">Current level</p><strong>Level @_profile.Level</strong><XpProgressBar Level="_profile.Level" XpThisLevel="_profile.XpThisLevel" XpToNextLevel="_profile.XpToNextLevel" XpTotal="_profile.XpTotal" /></article>
+        <article class="surface-card profile-stat"><span>Challenges solved</span><strong>@_profile.ChallengesSolved</strong><small>Since @_profile.MemberSince.ToString("dd MMM yyyy")</small></article>
+        <article class="surface-card profile-stat"><span>Attacker track</span><strong>@_profile.AttackerSolved</strong><small>Private completed attempts</small></article>
+        <article class="surface-card profile-stat"><span>Defender track</span><strong>@_profile.DefenderSolved</strong><small>Private completed attempts</small></article>
+    </section>
+
+    <section class="profile-grid">
+        <article class="surface-card profile-badges"><div class="section-heading compact"><div><p class="eyebrow">Achievements</p><h2>Earned badges</h2></div><span>@_profile.Badges.Count earned</span></div><BadgeShelf Badges="_profile.Badges" /></article>
+        <article class="surface-card profile-guidance"><p class="eyebrow">Continue learning</p><h2>Choose your own route</h2><p>Browse individual challenges whenever you want, or opt into a themed room when you prefer a structured sequence. Rooms do not restrict the general challenge catalogue.</p><div class="form-actions"><a class="button button-primary" href="/arena/challenges">Browse challenges</a><a class="button button-secondary" href="/arena/rooms">Explore rooms</a></div></article>
+    </section>
+
+    <section class="surface-card profile-progress" aria-labelledby="progress-heading">
+        <div class="section-heading compact"><div><p class="eyebrow">Attempt history</p><h2 id="progress-heading">My challenge progress</h2></div><span>@_progress.Count item(s)</span></div>
+        <div class="history-table-wrap"><table class="data-table"><caption class="sr-only">Private challenge progress</caption><thead><tr><th scope="col">Challenge</th><th scope="col">Track</th><th scope="col">Difficulty</th><th scope="col">Best score</th><th scope="col">Last attempt</th><th scope="col">Status</th></tr></thead><tbody>
+            @foreach (var item in _progress.OrderByDescending(item => item.LastAttemptAt ?? DateTimeOffset.MinValue))
+            {
+                <tr><th scope="row"><a class="table-link" href="/arena/challenge/@item.ChallengeId">@item.Title</a></th><td>@item.Track.ToLabel()</td><td>@item.Tier.ToLabel()</td><td>@(item.BestScore is int score ? $"{score} / 100" : "—")</td><td>@(item.LastAttemptAt?.ToString("dd MMM yyyy") ?? "Not attempted")</td><td><span class="status-pill status-@item.Status.ToString().ToLowerInvariant()">@item.Status.ToLabel()</span></td></tr>
+            }
+        </tbody></table></div>
+    </section>
+}
+
+@code {
+    private readonly CancellationTokenSource _cancellation = new();
+    private UserProfile? _profile;
+    private IReadOnlyList<ChallengeProgressItem>? _progress;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var profileTask = Api.GetMyProfileAsync(_cancellation.Token);
+            var progressTask = Api.GetMyProgressAsync(_cancellation.Token);
+            await Task.WhenAll(profileTask, progressTask);
+            _profile = await profileTask; _progress = await progressTask;
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public void Dispose() { _cancellation.Cancel(); _cancellation.Dispose(); }
+}

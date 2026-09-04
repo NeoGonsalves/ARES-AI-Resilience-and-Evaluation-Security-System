@@ -7,3 +7,9 @@ appsettings.Development.local.json
 .env
 .dotnet/
 .dotnet-cli-home/
+backend/.venv/
+backend/ares.db
+backend/test-ares.db
+backend/migration-ares.db
+backend/test-orchestrator.db
+backend/worker-migration-ares.db

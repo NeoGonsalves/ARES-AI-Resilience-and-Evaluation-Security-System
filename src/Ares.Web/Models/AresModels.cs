@@ -101,3 +101,119 @@ public sealed record CancelTestResponse(string TestId, TestRunStatus Status, str
 public sealed record CorpusSaveRequest(string TestId, string? AnalystNote);
 public sealed record CorpusSaveResponse(string AttackId, string TestId, DateTimeOffset SavedAt, string CorrelationId);
 public sealed record ApiError(string Code, string Message, string CorrelationId, IReadOnlyDictionary<string, string[]>? ValidationErrors, bool Retryable);
+
+// ── Arena Platform ────────────────────────────────────────────────────────────
+
+public enum ChallengeTrack { Attacker, Defender }
+
+public enum DifficultyTier { Beginner, Intermediate, Advanced, Expert }
+
+public enum ChallengeStatus { Locked, Available, InProgress, Completed, Skipped }
+
+public enum BadgeType
+{
+    FirstBlood, InjectionSpecialist, ExtractionArtist, DataExfilPrevented,
+    PolicyGuardian, RoleDefender, ToolWarden, ObfuscationBreaker,
+    PromptHardener, DefenderElite, RedTeamRookie, SpeedDemon,
+    Perfectionist, RoomMaster, PathComplete
+}
+
+public sealed record Challenge(
+    string Id,
+    string Title,
+    string Description,
+    ChallengeTrack Track,
+    DifficultyTier Tier,
+    AttackCategory Category,
+    string ScenarioContext,
+    string Objective,
+    string? Hint,
+    DifficultyTier ModelTier,
+    int TimeParMinutes,
+    int MaxScore,
+    bool IsRoomLocked,
+    IReadOnlyList<string> Tags);
+
+public sealed record ChallengeRoom(
+    string Id,
+    string Title,
+    string Description,
+    string Theme,
+    IReadOnlyList<string> ChallengeIds,
+    IReadOnlyList<string> PrerequisiteRoomIds,
+    string BadgeAwardedId);
+
+public sealed record LearningPath(
+    string Id,
+    string Name,
+    string Description,
+    IReadOnlyList<string> RoomIds,
+    BadgeType BadgeAwarded,
+    string Colour);
+
+public sealed record ScoreComponent(string Label, double Points, double MaxPoints, string Explanation);
+
+public sealed record ScoreBreakdown(
+    int Total,
+    int MaxTotal,
+    IReadOnlyList<ScoreComponent> Components,
+    string Summary);
+
+public sealed record ChallengeSubmission(
+    string Id,
+    string ChallengeId,
+    string UserId,
+    string TestRunId,
+    ScoreBreakdown Score,
+    DateTimeOffset SubmittedAt,
+    bool IsBest);
+
+public sealed record UserBadge(BadgeType Type, string Name, string Description, DateTimeOffset EarnedAt, string ChallengeId);
+
+public sealed record UserProfile(
+    string Id,
+    string DisplayName,
+    string Initials,
+    int XpTotal,
+    int Level,
+    int XpThisLevel,
+    int XpToNextLevel,
+    IReadOnlyList<UserBadge> Badges,
+    int ChallengesSolved,
+    int AttackerSolved,
+    int DefenderSolved,
+    DateTimeOffset MemberSince);
+
+public sealed record ChallengeProgressItem(
+    string ChallengeId,
+    string Title,
+    ChallengeTrack Track,
+    DifficultyTier Tier,
+    ChallengeStatus Status,
+    int? BestScore,
+    DateTimeOffset? LastAttemptAt);
+
+public sealed record OrgAssessment(
+    string Id,
+    string OrgName,
+    string Title,
+    IReadOnlyList<string> ChallengeIds,
+    DateTimeOffset OpensAt,
+    DateTimeOffset ClosesAt,
+    string AccessCode,
+    bool IsActive);
+
+public sealed record ChallengePageResult(
+    IReadOnlyList<Challenge> Items,
+    IReadOnlyList<ChallengeProgressItem> Progress,
+    int TotalCount,
+    int Page,
+    int PageSize);
+
+// New request/response DTOs
+public sealed record SubmitChallengeRequest(string ChallengeId, string TestRunId);
+public sealed record SubmitChallengeResponse(ChallengeSubmission Submission, bool BadgeUnlocked, UserBadge? Badge, string? NextChallengeId);
+public sealed record CreateOrgAssessmentRequest(OrgAssessment Draft);
+public sealed record CreateChallengeRequest(Challenge Draft);
+public sealed record UpdateChallengeRequest(Challenge Updated);
+

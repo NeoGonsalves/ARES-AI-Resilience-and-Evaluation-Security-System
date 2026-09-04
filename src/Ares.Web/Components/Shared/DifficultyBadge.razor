@@ -1,0 +1,9 @@
+@using Ares.Web.Models
+
+<span class="difficulty-badge @Value.ToCssClass()" aria-label="Difficulty: @Value.ToLabel()">
+    <span aria-hidden="true">@Value.ToIcon()</span> @Value.ToLabel()
+</span>
+
+@code {
+    [Parameter, EditorRequired] public DifficultyTier Value { get; set; }
+}

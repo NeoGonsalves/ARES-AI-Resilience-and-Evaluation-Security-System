@@ -18,4 +18,27 @@ public interface IAresApiClient
     Task<HardeningComparison> GetHardeningComparisonAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<ProviderHealth>> GetProviderHealthAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<ModelConfiguration>> GetModelsAsync(AiProvider provider, CancellationToken cancellationToken);
+
+    // ── Arena Platform ────────────────────────────────────────────────────────
+
+    // Challenge catalogue
+    Task<ChallengePageResult> GetChallengesAsync(ChallengeTrack? track, DifficultyTier? tier, AttackCategory? category, string? search, int page, CancellationToken cancellationToken);
+    Task<Challenge?> GetChallengeAsync(string challengeId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ChallengeRoom>> GetRoomsAsync(CancellationToken cancellationToken);
+    Task<ChallengeRoom?> GetRoomAsync(string roomId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<LearningPath>> GetLearningPathsAsync(CancellationToken cancellationToken);
+
+    // Submission & scoring
+    Task<SubmitChallengeResponse> SubmitChallengeAsync(SubmitChallengeRequest request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ChallengeSubmission>> GetMySubmissionsAsync(string challengeId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ChallengeProgressItem>> GetMyProgressAsync(CancellationToken cancellationToken);
+
+    // Profile
+    Task<UserProfile> GetMyProfileAsync(CancellationToken cancellationToken);
+
+    // Org / Admin
+    Task<IReadOnlyList<OrgAssessment>> GetOrgAssessmentsAsync(CancellationToken cancellationToken);
+    Task<OrgAssessment> CreateOrgAssessmentAsync(CreateOrgAssessmentRequest request, CancellationToken cancellationToken);
+    Task<Challenge> CreateChallengeAsync(CreateChallengeRequest request, CancellationToken cancellationToken);
+    Task<Challenge> UpdateChallengeAsync(UpdateChallengeRequest request, CancellationToken cancellationToken);
 }
