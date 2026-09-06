@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     attacker_provider: str = Field(default="groq", alias="ATTACKER_PROVIDER")
     victim_provider: str = Field(default="groq", alias="VICTIM_PROVIDER")
     judge_provider: str = Field(default="gemini", alias="JUDGE_PROVIDER")
+    hardener_provider: str = Field(default="nvidia", alias="HARDENER_PROVIDER")
+    hardener_model: str = Field(
+        default="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+        alias="HARDENER_MODEL",
+    )
 
     # Resilience & Fallback Settings
     fallback_order: List[str] = Field(default_factory=lambda: ["groq", "gemini", "nvidia"])
