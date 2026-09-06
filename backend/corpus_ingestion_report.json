@@ -1,0 +1,22 @@
+{
+  "total_ingested": 1000,
+  "initial_count": 145,
+  "final_count": 1145,
+  "elapsed_seconds": 88.49725380004384,
+  "throughput_vectors_per_sec": 11.29978566633787,
+  "target_met_under_60s": false,
+  "collection_name": "ares_attacks",
+  "sources_breakdown": {
+    "jailbreakbench": 437,
+    "harmbench": 310,
+    "owasp": 253
+  },
+  "categories_breakdown": {
+    "role_play_hijack": 310,
+    "instruction_override": 310,
+    "delimiter_confusion": 248,
+    "encoding_tricks": 127,
+    "context_smuggling": 5
+  },
+  "timestamp": "2026-09-06T17:36:14.086955+00:00"
+}
