@@ -116,24 +116,42 @@ class AttackVectorMLAnalyzer:
         self.settings = settings or default_settings
         self.store = store or QdrantStore(settings=self.settings)
 
-    def fetch_data(self) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
-        """Retrieve all vector points and metadata payloads from Qdrant."""
-        points, _ = self.store.client.scroll(
-            collection_name=self.store.collection_name,
-            with_vectors=True,
-            with_payload=True,
-            limit=500,
-        )
-        if not points:
+    def fetch_data(self, max_points: Optional[int] = None) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
+        """Retrieve all vector points and metadata payloads from Qdrant with pagination."""
+        all_points = []
+        offset = None
+
+        while True:
+            batch_limit = 500
+            if max_points is not None:
+                remaining = max_points - len(all_points)
+                if remaining <= 0:
+                    break
+                batch_limit = min(500, remaining)
+
+            points, next_offset = self.store.client.scroll(
+                collection_name=self.store.collection_name,
+                with_vectors=True,
+                with_payload=True,
+                limit=batch_limit,
+                offset=offset,
+            )
+            all_points.extend(points)
+
+            if next_offset is None or (max_points is not None and len(all_points) >= max_points):
+                break
+            offset = next_offset
+
+        if not all_points:
             raise ValueError(f"Collection '{self.store.collection_name}' is empty.")
 
-        vectors = np.array([p.vector for p in points], dtype=np.float32)
-        payloads = [p.payload or {} for p in points]
+        vectors = np.array([p.vector for p in all_points], dtype=np.float32)
+        payloads = [p.payload or {} for p in all_points]
         return vectors, payloads
 
-    def compute_analysis(self) -> MLAnalysisReport:
-        """Run full ML statistical pipeline and train classifier."""
-        vectors, payloads = self.fetch_data()
+    def compute_analysis(self, max_points: Optional[int] = None) -> MLAnalysisReport:
+        """Run full ML statistical pipeline and train classifier across the full corpus."""
+        vectors, payloads = self.fetch_data(max_points=max_points)
         n_samples, n_dim = vectors.shape
 
         # --- 1. Vector Space & Pairwise Cosine Statistics ---

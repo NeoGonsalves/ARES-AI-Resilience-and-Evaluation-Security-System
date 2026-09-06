@@ -38,6 +38,31 @@ def main():
     for row in report.model_performance.confusion_matrix:
         print(" ", row)
 
+    # Save serialized report
+    import json
+    out_path = backend_dir / "ml_vector_analysis_report.json"
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "sample_count": report.vector_stats.sample_count,
+                "vector_dim": report.vector_stats.vector_dim,
+                "pairwise_similarity_mean": report.vector_stats.pairwise_similarity_mean,
+                "pairwise_similarity_std": report.vector_stats.pairwise_similarity_std,
+                "pca_top_3_variance": report.vector_stats.pca_top_3_variance,
+                "pca_cumulative_variance_top_5": report.vector_stats.pca_cumulative_variance_top_5,
+                "silhouette_score": report.vector_stats.silhouette_score,
+                "category_counts": report.feature_stats.category_counts,
+                "classifier_name": report.model_performance.model_name,
+                "cv_mean_accuracy": report.model_performance.cv_mean_accuracy,
+                "cv_std_accuracy": report.model_performance.cv_std_accuracy,
+                "classification_report": report.model_performance.classification_report,
+                "confusion_matrix": report.model_performance.confusion_matrix,
+            },
+            f,
+            indent=2,
+        )
+    print(f"\n[OK] ML Vector Analysis Report saved to: {out_path}")
+
 
 if __name__ == "__main__":
     main()

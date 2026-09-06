@@ -1,0 +1,105 @@
+{
+  "sample_count": 1145,
+  "vector_dim": 768,
+  "pairwise_similarity_mean": 0.12022282928228378,
+  "pairwise_similarity_std": 0.22295764088630676,
+  "pca_top_3_variance": [
+    0.19437812268733978,
+    0.04789038002490997,
+    0.041641004383563995
+  ],
+  "pca_cumulative_variance_top_5": 0.3568441867828369,
+  "silhouette_score": -0.0635,
+  "category_counts": {
+    "instruction_override": 330,
+    "encoding_tricks": 136,
+    "delimiter_confusion": 257,
+    "role_play_hijack": 408,
+    "context_smuggling": 14
+  },
+  "classifier_name": "RandomForest(Hybrid: 5-PCA + 5-Structural Features) [vs LogisticRegression CV: 94.0%]",
+  "cv_mean_accuracy": 0.8786192301878494,
+  "cv_std_accuracy": 0.018582843827940728,
+  "classification_report": {
+    "context_smuggling": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 14.0
+    },
+    "delimiter_confusion": {
+      "precision": 0.8755760368663594,
+      "recall": 0.7392996108949417,
+      "f1-score": 0.8016877637130801,
+      "support": 257.0
+    },
+    "encoding_tricks": {
+      "precision": 0.990990990990991,
+      "recall": 0.8088235294117647,
+      "f1-score": 0.8906882591093117,
+      "support": 136.0
+    },
+    "instruction_override": {
+      "precision": 0.8790560471976401,
+      "recall": 0.9030303030303031,
+      "f1-score": 0.890881913303438,
+      "support": 330.0
+    },
+    "role_play_hijack": {
+      "precision": 0.8305439330543933,
+      "recall": 0.9730392156862745,
+      "f1-score": 0.8961625282167043,
+      "support": 408.0
+    },
+    "accuracy": 0.868995633187773,
+    "macro avg": {
+      "precision": 0.7152334016218769,
+      "recall": 0.6848385318046568,
+      "f1-score": 0.6958840928685068,
+      "support": 1145.0
+    },
+    "weighted avg": {
+      "precision": 0.8635355777387274,
+      "recall": 0.868995633187773,
+      "f1-score": 0.8618276868259196,
+      "support": 1145.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      0,
+      5,
+      0,
+      0,
+      9
+    ],
+    [
+      0,
+      190,
+      0,
+      34,
+      33
+    ],
+    [
+      0,
+      8,
+      110,
+      1,
+      17
+    ],
+    [
+      0,
+      9,
+      1,
+      298,
+      22
+    ],
+    [
+      0,
+      5,
+      0,
+      6,
+      397
+    ]
+  ]
+}
