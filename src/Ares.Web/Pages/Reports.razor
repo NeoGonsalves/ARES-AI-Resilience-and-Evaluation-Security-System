@@ -1,0 +1,183 @@
+@page "/reports"
+@implements IDisposable
+@inject IAresApiClient Api
+
+<PageTitle>Reports · ARES</PageTitle>
+
+@if (_loading)
+{
+    <LoadingState Message="Loading security reports…" />
+}
+else if (_error is not null)
+{
+    <ErrorState Title="Reports unavailable" Message="@_error" Retry="LoadAsync" />
+}
+else
+{
+    <section class="page-intro dashboard-intro">
+        <div>
+            <p class="eyebrow">Evaluation history</p>
+            <h1>Security Reports</h1>
+            <p>All red-team evaluation, prompt hardening, corpus ingestion, and ML analytics reports.</p>
+        </div>
+        <div class="intro-meta">
+            <span>Last refreshed</span>
+            <strong>@DateTime.UtcNow.ToString("dd MMM yyyy, HH:mm") UTC</strong>
+            <button class="text-button" @onclick="LoadAsync">Refresh</button>
+        </div>
+    </section>
+
+    <div class="dashboard-two-col lower-grid" style="margin-bottom:1.5rem">
+
+        @* Robustness Report *@
+        <article class="surface-card hardening-panel">
+            <div class="section-heading compact">
+                <div><p class="eyebrow">Red-team evaluation</p><h2>Robustness Report</h2></div>
+                <span class="subtle-code">LATEST</span>
+            </div>
+            @if (_recent?.Count > 0)
+            {
+                var latest = _recent[0];
+                <div class="hardening-rates">
+                    <div><span>Risk score</span><strong>@latest.RiskScore / 100</strong></div>
+                    <span class="rate-arrow" aria-hidden="true">·</span>
+                    <div><span>Status</span><strong>@latest.Status</strong></div>
+                </div>
+                <div class="improvement-callout">
+                    <span>Last run</span><strong>@latest.Timestamp.ToString("dd MMM yyyy, HH:mm")</strong>
+                    <p>Provider: @latest.Provider · Model: @latest.Model</p>
+                </div>
+            }
+            else
+            {
+                <EmptyState Eyebrow="No runs yet" Title="No evaluations found."
+                            Message="Run an evaluation in ARES Arena to generate a report." />
+            }
+            <a class="button button-secondary" href="/arena">Open ARES Arena</a>
+        </article>
+
+        @* Hardening Report *@
+        <article class="surface-card hardening-panel">
+            <div class="section-heading compact">
+                <div><p class="eyebrow">Prompt hardening</p><h2>Hardening Report</h2></div>
+                <span class="subtle-code">@_hardening.LastCycle.ToString("dd MMM yyyy")</span>
+            </div>
+            <div class="hardening-rates">
+                <div><span>Baseline ASR</span><strong>@_hardening.BaselineSuccessRate%</strong></div>
+                <span class="rate-arrow" aria-hidden="true">→</span>
+                <div><span>Hardened ASR</span><strong>@_hardening.HardenedSuccessRate%</strong></div>
+            </div>
+            <div class="improvement-callout">
+                <span>Absolute improvement</span>
+                <strong>@_hardening.ImprovementPoints pts</strong>
+                <p>Across @_hardening.TestsIncluded controlled tests via NVIDIA Nemotron.</p>
+            </div>
+            <a class="button button-secondary" href="/arena">Review in ARES Arena</a>
+        </article>
+    </div>
+
+    @* ML Analytics Report *@
+    <article class="surface-card provider-panel" style="margin-bottom:1.5rem" aria-labelledby="ml-report-heading">
+        <div class="section-heading compact">
+            <div><p class="eyebrow">ML vector analytics</p><h2 id="ml-report-heading">Classification Model Report</h2></div>
+            <span class="subtle-code">CORPUS: @(_stats?.CorpusSize.ToString("N0") ?? "—") VECTORS</span>
+        </div>
+        @if (_stats is not null)
+        {
+            <ul class="provider-list">
+                <li style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+                    <span>Overall Accuracy</span><strong class="accent-green">@_stats.OverallAccuracy.ToString("F1")%</strong>
+                </li>
+                <li style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+                    <span>CV Accuracy (5-fold)</span><strong>@_stats.CvAccuracy.ToString("F1")% ±@_stats.CvStd.ToString("F1")%</strong>
+                </li>
+                <li style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+                    <span>Corpus size</span><strong>@_stats.CorpusSize.ToString("N0") vectors</strong>
+                </li>
+                <li style="display:flex;justify-content:space-between;padding:0.5rem 0">
+                    <span>Classifier</span><span class="subtle-code" style="font-size:0.75rem">@_stats.ModelName.Split('|')[0].Trim()</span>
+                </li>
+            </ul>
+        }
+        else
+        {
+            <EmptyState Eyebrow="No report" Title="ML report not found."
+                        Message="Run scripts/run_ml_statistics.py to generate the report." />
+        }
+        <a class="button button-secondary" href="/stats" style="margin-top:1rem">View full ML analytics</a>
+    </article>
+
+    @* Recent Test History *@
+    @if (_recent?.Count > 0)
+    {
+        <section class="surface-card" aria-labelledby="history-heading">
+            <div class="section-heading compact">
+                <div><p class="eyebrow">Evaluation history</p><h2 id="history-heading">Recent test runs</h2></div>
+            </div>
+            <div class="history-table-wrap">
+                <table class="data-table">
+                    <caption class="sr-only">Recent test runs</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">Timestamp</th>
+                            <th scope="col">Category</th>
+                            <th scope="col">Provider</th>
+                            <th scope="col">Risk score</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _recent.Take(10))
+                        {
+                            <tr>
+                                <th scope="row"><span class="subtle-code">@item.Id</span></th>
+                                <td>@item.Timestamp.ToString("dd MMM, HH:mm")</td>
+                                <td><span class="subtle-code">@item.Category</span></td>
+                                <td>@item.Provider</td>
+                                <td><SeverityBadge Value="ScoreToSeverity(item.RiskScore)" /></td>
+                                <td><span class="table-status">@item.Status</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private IReadOnlyList<RecentTestItem>? _recent;
+    private HardeningComparison _hardening = new(0, 0, 0, 0, DateOnly.MinValue);
+    private StatsResponse? _stats;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            _recent    = await Api.GetRecentTestsAsync(_cts.Token);
+            _hardening = await Api.GetHardeningComparisonAsync(_cts.Token);
+            try { _stats = await Api.GetStatsAsync(_cts.Token); } catch { _stats = null; }
+        }
+        catch { _error = "Failed to load reports."; }
+        finally { _loading = false; }
+    }
+
+    private static Severity ScoreToSeverity(int score)
+    {
+        if (score < 20) return Severity.Safe;
+        if (score < 40) return Severity.Low;
+        if (score < 60) return Severity.Medium;
+        if (score < 80) return Severity.High;
+        return Severity.Critical;
+    }
+
+    public void Dispose() => _cts.Cancel();
+}
+

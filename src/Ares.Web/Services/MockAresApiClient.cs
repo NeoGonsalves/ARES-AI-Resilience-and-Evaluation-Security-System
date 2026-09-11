@@ -99,7 +99,28 @@ public sealed class MockAresApiClient : IAresApiClient
         return Task.FromResult(models);
     }
 
+    public Task<StatsResponse> GetStatsAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new StatsResponse(98.6, 98.4, 0.2, 2145, new Dictionary<string, int>(), new List<CategoryAccuracy>(), "Mock Model", DateTimeOffset.UtcNow));
+    }
+
+    public Task<SearchResponse> SearchAsync(SearchRequest request, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new SearchResponse(request.Query, 3, new List<SearchHit>
+        {
+            new SearchHit("1", 0.95, "Mock Attack 1", "role_play", "Source", "Domain", "High", null),
+            new SearchHit("2", 0.85, "Mock Attack 2", "injection", "Source", "Domain", "Medium", null),
+            new SearchHit("3", 0.75, "Mock Attack 3", "bypass", "Source", "Domain", "Low", null)
+        }));
+    }
+
+    public Task<HardenResponse> HardenAsync(HardenRequest request, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new HardenResponse("Hardened mock prompt", 50, 90, 40, "few-shot", 120, DateTimeOffset.UtcNow));
+    }
+
     private async Task<TestRun> RequireRunAsync(string testId, CancellationToken cancellationToken) => await GetTestAsync(testId, cancellationToken) ?? throw new KeyNotFoundException($"Test {testId} was not found.");
+
     private TestRun RequireRun(string testId) { lock (_gate) return _runs.GetValueOrDefault(testId) ?? throw new KeyNotFoundException($"Test {testId} was not found."); }
     private TestRun Update(TestRun run, string stage, string message, string level = "info") => Update(run with { Log = [.. run.Log, new ExecutionLogEvent(DateTimeOffset.UtcNow, stage, message, level)] });
     private TestRun Update(TestRun run) { lock (_gate) { _runs[run.Id] = run; return run; } }

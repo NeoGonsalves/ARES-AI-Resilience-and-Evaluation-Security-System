@@ -101,3 +101,22 @@ public sealed record CancelTestResponse(string TestId, TestRunStatus Status, str
 public sealed record CorpusSaveRequest(string TestId, string? AnalystNote);
 public sealed record CorpusSaveResponse(string AttackId, string TestId, DateTimeOffset SavedAt, string CorrelationId);
 public sealed record ApiError(string Code, string Message, string CorrelationId, IReadOnlyDictionary<string, string[]>? ValidationErrors, bool Retryable);
+
+// --- Phase 6: ML Stats ---
+public sealed record CategoryAccuracy(string Category, double Precision, double Recall, double F1Score, int Support);
+public sealed record StatsResponse(
+    double OverallAccuracy, double CvAccuracy, double CvStd,
+    int CorpusSize, IReadOnlyDictionary<string, int> CategoryCounts,
+    IReadOnlyList<CategoryAccuracy> CategoryBreakdown,
+    string ModelName, DateTimeOffset GeneratedAt);
+
+// --- Phase 6: Semantic Search ---
+public sealed record SearchRequest(string Query, string? Category = null, int Limit = 10);
+public sealed record SearchHit(string Id, double Score, string AttackText, string Category,
+    string Source, string Domain, string Severity, string? OperatorApplied);
+public sealed record SearchResponse(string Query, int TotalHits, IReadOnlyList<SearchHit> Hits);
+
+// --- Phase 6: Prompt Hardening ---
+public sealed record HardenRequest(string SystemPrompt, string ApplicationName = "ARES App", string Domain = "general");
+public sealed record HardenResponse(string HardenedPrompt, int BaselineScore, int HardenedScore,
+    int ImprovementPoints, string StrategyApplied, int TokenOverhead, DateTimeOffset GeneratedAt);

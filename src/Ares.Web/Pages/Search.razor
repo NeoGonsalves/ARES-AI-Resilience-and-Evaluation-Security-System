@@ -1,0 +1,143 @@
+@page "/search"
+@implements IDisposable
+@inject IAresApiClient Api
+
+<PageTitle>Semantic Search · ARES</PageTitle>
+
+<section class="page-intro arena-intro">
+    <div>
+        <p class="eyebrow">Qdrant Corpus · 2,145 vectors</p>
+        <h1>Semantic Attack Search</h1>
+        <p>Query the live attack corpus using natural language. Results are ranked by cosine similarity against Gemini embeddings.</p>
+    </div>
+</section>
+
+<section class="surface-card" style="margin-bottom:1.5rem">
+    <div class="section-heading compact">
+        <div><p class="eyebrow">Search parameters</p><h2>Query the corpus</h2></div>
+    </div>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1;min-width:240px">
+            <label class="field-label" for="query-input">Search query</label>
+            <input id="query-input" class="field-input" type="text"
+                   placeholder="e.g. ignore previous instructions, roleplay as DAN…"
+                   @bind="_query" @bind:event="oninput"
+                   @onkeydown="OnKeyDown" />
+        </div>
+        <div style="min-width:180px">
+            <label class="field-label" for="cat-filter">Category filter</label>
+            <select id="cat-filter" class="field-input" @bind="_category">
+                <option value="">All categories</option>
+                <option value="role_play_hijack">Role-play hijack</option>
+                <option value="instruction_override">Instruction override</option>
+                <option value="delimiter_confusion">Delimiter confusion</option>
+                <option value="encoding_tricks">Encoding tricks</option>
+                <option value="context_smuggling">Context smuggling</option>
+            </select>
+        </div>
+        <div style="min-width:80px">
+            <label class="field-label" for="limit-input">Limit</label>
+            <input id="limit-input" class="field-input" type="number" min="1" max="20" @bind="_limit" />
+        </div>
+        <button class="button button-primary" @onclick="RunSearchAsync" disabled="@(_searching || string.IsNullOrWhiteSpace(_query))">
+            @(_searching ? "Searching…" : "Search")
+        </button>
+    </div>
+</section>
+
+@if (_searching)
+{
+    <LoadingState Message="Querying Qdrant corpus…" />
+}
+else if (_error is not null)
+{
+    <ErrorState Title="Search failed" Message="@_error" Retry="RunSearchAsync" />
+}
+else if (_result is not null)
+{
+    <section aria-labelledby="results-heading">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Corpus · semantic similarity results</p>
+                <h2 id="results-heading">@_result.TotalHits hit@(_result.TotalHits == 1 ? "" : "s") for "@_result.Query"</h2>
+            </div>
+        </div>
+
+        @if (_result.Hits.Count == 0)
+        {
+            <EmptyState Eyebrow="No results" Title="No matching attacks found."
+                        Message="Try broadening your query or removing the category filter." />
+        }
+        else
+        {
+            <div class="history-table-wrap">
+                <table class="data-table">
+                    <caption class="sr-only">Semantic search results</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Score</th>
+                            <th scope="col">Category</th>
+                            <th scope="col">Severity</th>
+                            <th scope="col">Source</th>
+                            <th scope="col">Attack preview</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var hit in _result.Hits)
+                        {
+                            <tr>
+                                <td><strong>@hit.Score.ToString("F3")</strong></td>
+                                <td><span class="subtle-code">@hit.Category</span></td>
+                                <td><SeverityBadge Value="MapSeverity(hit.Severity)" /></td>
+                                <td>@hit.Source</td>
+                                <td title="@hit.AttackText">
+                                    @(hit.AttackText.Length > 110 ? hit.AttackText[..110] + "…" : hit.AttackText)
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private string _query    = string.Empty;
+    private string _category = string.Empty;
+    private int    _limit    = 10;
+    private bool   _searching;
+    private string? _error;
+    private SearchResponse? _result;
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await RunSearchAsync();
+    }
+
+    private async Task RunSearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_query)) return;
+        _searching = true; _error = null; _result = null;
+        try
+        {
+            _result = await Api.SearchAsync(
+                new SearchRequest(_query, string.IsNullOrEmpty(_category) ? null : _category, _limit),
+                _cts.Token);
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _searching = false; }
+    }
+
+    private static Severity MapSeverity(string s) => s.ToLowerInvariant() switch
+    {
+        "low"      => Severity.Low,
+        "medium"   => Severity.Medium,
+        "high"     => Severity.High,
+        "critical" => Severity.Critical,
+        _          => Severity.Safe,
+    };
+
+    public void Dispose() => _cts.Cancel();
+}

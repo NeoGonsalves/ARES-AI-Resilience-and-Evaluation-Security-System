@@ -1,22 +1,29 @@
 @page "/attack-corpus"
 @page "/runtime-incidents"
 @page "/prompt-configurations"
-@page "/reports"
 @page "/settings"
 
 <PageTitle>Planned module · ARES</PageTitle>
 
 <section class="planned-module">
-    <p class="eyebrow">Week 1 / planned module</p>
+    <p class="eyebrow">Planned module</p>
     <h1>@ModuleName</h1>
-    <p>This area has a prepared route and shell, but its detailed workflow belongs to a later delivery. The Dashboard and ARES Arena are fully interactive in this prototype.</p>
-    <a class="button button-primary" href="/arena">Open ARES Arena</a>
+    <p>This area has a prepared route and shell, but its detailed workflow is planned for a future delivery sprint.</p>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:1.5rem">
+        <a class="button button-primary" href="/arena">ARES Arena</a>
+        <a class="button button-secondary" href="/stats">ML Analytics</a>
+        <a class="button button-secondary" href="/search">Corpus Search</a>
+        <a class="button button-secondary" href="/reports">Reports</a>
+    </div>
 </section>
 
 @code {
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     private string ModuleName => NavigationManager.Uri.Split('/').Last() switch
     {
-        "attack-corpus" => "Attack Corpus", "runtime-incidents" => "Runtime Incidents", "prompt-configurations" => "Prompt Configurations", "reports" => "Reports", _ => "Settings"
+        "attack-corpus"          => "Attack Corpus",
+        "runtime-incidents"      => "Runtime Incidents",
+        "prompt-configurations"  => "Prompt Configurations",
+        _                        => "Settings",
     };
 }

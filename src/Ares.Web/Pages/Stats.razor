@@ -1,0 +1,125 @@
+@page "/stats"
+@implements IDisposable
+@inject IAresApiClient Api
+
+<PageTitle>ML Analytics · ARES</PageTitle>
+
+@if (_loading)
+{
+    <LoadingState Message="Loading ML vector analysis…" />
+}
+else if (_error is not null)
+{
+    <ErrorState Title="Analytics unavailable" Message="The ML analysis report could not be loaded." Retry="LoadAsync" />
+}
+else if (_stats is not null)
+{
+    <section class="page-intro dashboard-intro">
+        <div>
+            <p class="eyebrow">ML Vector Analytics</p>
+            <h1>Attack Classification Model</h1>
+            <p>TF-IDF + Logistic Regression trained on <strong>@_stats.CorpusSize.ToString("N0")</strong> attack vectors across 5 categories.</p>
+        </div>
+        <div class="intro-meta">
+            <span>Report generated</span>
+            <strong>@_stats.GeneratedAt.ToString("dd MMM yyyy, HH:mm") UTC</strong>
+            <button class="text-button" @onclick="LoadAsync">Refresh</button>
+        </div>
+    </section>
+
+    <section class="metric-grid" aria-label="Model performance metrics">
+        <article class="surface-card metric-card">
+            <p class="eyebrow">Overall Accuracy</p>
+            <p class="metric-value accent-green">@_stats.OverallAccuracy.ToString("F1")%</p>
+            <p class="metric-desc">Full-corpus training accuracy</p>
+        </article>
+        <article class="surface-card metric-card">
+            <p class="eyebrow">CV Accuracy</p>
+            <p class="metric-value accent-green">@_stats.CvAccuracy.ToString("F1")% <small>±@_stats.CvStd.ToString("F1")%</small></p>
+            <p class="metric-desc">5-fold stratified cross-validation</p>
+        </article>
+        <article class="surface-card metric-card">
+            <p class="eyebrow">Corpus Size</p>
+            <p class="metric-value">@_stats.CorpusSize.ToString("N0")</p>
+            <p class="metric-desc">Vectors in Qdrant Cloud</p>
+        </article>
+    </section>
+
+    <section class="surface-card" aria-labelledby="breakdown-heading" style="margin-top:1.5rem">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">Per-category classification</p>
+                <h2 id="breakdown-heading">Precision · Recall · F1</h2>
+            </div>
+            <span class="subtle-code">@_stats.ModelName.Split('|')[0].Trim()</span>
+        </div>
+        <div class="history-table-wrap">
+            <table class="data-table">
+                <caption class="sr-only">Per-category ML metrics</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Category</th>
+                        <th scope="col">Precision</th>
+                        <th scope="col">Recall</th>
+                        <th scope="col">F1 Score</th>
+                        <th scope="col">Support</th>
+                        <th scope="col">F1 Bar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var cat in _stats.CategoryBreakdown.OrderByDescending(c => c.F1Score))
+                    {
+                        <tr>
+                            <th scope="row"><span class="subtle-code">@cat.Category</span></th>
+                            <td>@cat.Precision.ToString("P0")</td>
+                            <td>@cat.Recall.ToString("P0")</td>
+                            <td><strong>@cat.F1Score.ToString("P0")</strong></td>
+                            <td>@cat.Support</td>
+                            <td>
+                                <div class="category-bar" aria-label="F1 @cat.F1Score.ToString("P0")">
+                                    <span style="width:@((cat.F1Score * 100).ToString("F0"))%;background:var(--accent-green)"></span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="surface-card" style="margin-top:1.5rem" aria-labelledby="dist-heading">
+        <div class="section-heading compact">
+            <div><p class="eyebrow">Corpus distribution</p><h2 id="dist-heading">Vectors by category</h2></div>
+        </div>
+        <ul class="category-list">
+            @foreach (var (cat, count) in _stats.CategoryCounts.OrderByDescending(kv => kv.Value))
+            {
+                var pct = _stats.CorpusSize > 0 ? count * 100 / _stats.CorpusSize : 0;
+                <li>
+                    <div class="category-label"><span class="subtle-code">@cat</span><strong>@count.ToString("N0") vectors</strong></div>
+                    <div class="category-bar" aria-label="@cat: @pct%"><span style="width:@pct%"></span></div>
+                    <small>@pct% of corpus</small>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private StatsResponse? _stats;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try   { _stats = await Api.GetStatsAsync(_cts.Token); }
+        catch { _error = "Failed to load ML analytics."; }
+        finally { _loading = false; }
+    }
+
+    public void Dispose() => _cts.Cancel();
+}
