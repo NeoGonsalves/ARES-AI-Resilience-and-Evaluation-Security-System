@@ -1,0 +1,24 @@
+@using Ares.Web.Models
+
+<div class="track-toggle" role="group" aria-label="Challenge track filter">
+    <button class="track-btn @(Selected == null ? "active" : "")"
+            @onclick="() => OnSelect.InvokeAsync(null)"
+            aria-pressed="@(Selected == null)">
+        All
+    </button>
+    <button class="track-btn track-attacker @(Selected == ChallengeTrack.Attacker ? "active" : "")"
+            @onclick="() => OnSelect.InvokeAsync(ChallengeTrack.Attacker)"
+            aria-pressed="@(Selected == ChallengeTrack.Attacker)">
+        <span aria-hidden="true">⚔</span> Attacker
+    </button>
+    <button class="track-btn track-defender @(Selected == ChallengeTrack.Defender ? "active" : "")"
+            @onclick="() => OnSelect.InvokeAsync(ChallengeTrack.Defender)"
+            aria-pressed="@(Selected == ChallengeTrack.Defender)">
+        <span aria-hidden="true">🛡</span> Defender
+    </button>
+</div>
+
+@code {
+    [Parameter] public ChallengeTrack? Selected { get; set; }
+    [Parameter, EditorRequired] public EventCallback<ChallengeTrack?> OnSelect { get; set; }
+}

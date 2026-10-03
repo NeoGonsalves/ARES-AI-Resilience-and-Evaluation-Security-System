@@ -1,0 +1,83 @@
+@page "/arena/rooms"
+@page "/arena/rooms/{RoomId}"
+@implements IDisposable
+@inject IAresApiClient Api
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(RoomId is null ? "Optional Rooms" : "Arena Room") · ARES</PageTitle>
+
+@if (_loading)
+{
+    <LoadingState Message="Loading optional learning rooms…" />
+}
+else if (RoomId is not null && _room is null)
+{
+    <ErrorState Title="Room not found" Message="This room is unavailable. You can still browse the complete challenge catalogue." Retry="GoToCatalogue" />
+}
+else if (RoomId is null)
+{
+    <section class="page-intro"><div><p class="eyebrow">ARES Arena / optional rooms</p><h1>Guided rooms</h1><p>Rooms are optional themed collections for learners who want a sequence. You can always work directly from the full challenge catalogue.</p></div><a class="button button-quiet" href="/arena">Back to Arena hub</a></section>
+    <section class="room-grid" aria-label="Optional learning rooms">
+        @foreach (var room in _rooms)
+        {
+            var completed = CountCompleted(room);
+            <article class="surface-card room-card">
+                <div><p class="eyebrow">@room.Theme</p><h2>@room.Title</h2><p>@room.Description</p></div>
+                <RoomProgressRing Completed="completed" TotalChallenges="room.ChallengeIds.Count" />
+                <div class="room-card-footer"><span>@room.ChallengeIds.Count challenges · Badge: @room.BadgeAwardedId</span><a class="button button-secondary" href="/arena/rooms/@room.Id">Explore room</a></div>
+            </article>
+        }
+    </section>
+}
+else if (_room is not null)
+{
+    <section class="page-intro"><div><p class="eyebrow">Optional room / @_room.Theme</p><h1>@_room.Title</h1><p>@_room.Description</p></div><a class="button button-quiet" href="/arena/rooms">All rooms</a></section>
+    <section class="room-detail-summary"><RoomProgressRing Completed="CountCompleted(_room)" TotalChallenges="_room.ChallengeIds.Count" /><div><p><strong>Optional sequence.</strong> Completing this room can earn its badge, but no room is required to use the challenge catalogue.</p>@if (_room.PrerequisiteRoomIds.Count > 0) { <p class="muted">Recommended preparation: @_room.PrerequisiteRoomIds.Count earlier room(s).</p> }</div><a class="button button-secondary" href="/arena/challenges">Browse all challenges</a></section>
+    <section class="room-challenge-grid" aria-label="@_room.Title challenges">
+        @foreach (var challenge in _roomChallenges)
+        {
+            var progress = _progress.FirstOrDefault(item => item.ChallengeId == challenge.Id);
+            <ChallengeCard Challenge="challenge" Progress="progress" OnSelect="OpenChallenge" />
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public string? RoomId { get; set; }
+
+    private readonly CancellationTokenSource _cancellation = new();
+    private IReadOnlyList<ChallengeRoom> _rooms = [];
+    private IReadOnlyList<ChallengeProgressItem> _progress = [];
+    private ChallengeRoom? _room;
+    private IReadOnlyList<Challenge> _roomChallenges = [];
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true; _room = null; _roomChallenges = [];
+        try
+        {
+            var roomsTask = Api.GetRoomsAsync(_cancellation.Token);
+            var progressTask = Api.GetMyProgressAsync(_cancellation.Token);
+            await Task.WhenAll(roomsTask, progressTask);
+            _rooms = await roomsTask; _progress = await progressTask;
+            if (RoomId is not null)
+            {
+                _room = _rooms.FirstOrDefault(room => room.Id == RoomId);
+                if (_room is not null)
+                {
+                    var challengeTasks = _room.ChallengeIds.Select(id => Api.GetChallengeAsync(id, _cancellation.Token)).ToArray();
+                    await Task.WhenAll(challengeTasks);
+                    _roomChallenges = challengeTasks.Select(task => task.Result).Where(challenge => challenge is not null).Select(challenge => challenge!).ToList();
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally { _loading = false; }
+    }
+
+    private int CountCompleted(ChallengeRoom room) => room.ChallengeIds.Count(id => _progress.Any(item => item.ChallengeId == id && item.Status == ChallengeStatus.Completed));
+    private void OpenChallenge(string challengeId) => NavigationManager.NavigateTo($"/arena/challenge/{challengeId}");
+    private void GoToCatalogue() => NavigationManager.NavigateTo("/arena/challenges");
+    public void Dispose() { _cancellation.Cancel(); _cancellation.Dispose(); }
+}

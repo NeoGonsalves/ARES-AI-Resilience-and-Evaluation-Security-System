@@ -1,0 +1,44 @@
+@using Ares.Web.Models
+
+<article class="challenge-card @Challenge.Track.ToCssClass() @(Progress?.Status == ChallengeStatus.Locked ? "challenge-locked" : "")"
+         aria-label="@Challenge.Title challenge">
+    <div class="challenge-card-header">
+        <span class="track-icon" aria-label="@Challenge.Track.ToLabel() track" title="@Challenge.Track.ToLabel()">@Challenge.Track.ToIcon()</span>
+        <DifficultyBadge Value="@Challenge.Tier" />
+        @if (Progress?.Status is not null)
+        {
+            <span class="challenge-status-icon" aria-label="Status: @Progress.Status.ToLabel()" title="@Progress.Status.ToLabel()">@Progress.Status.ToIcon()</span>
+        }
+    </div>
+    <div class="challenge-card-body">
+        <h3 class="challenge-card-title">@Challenge.Title</h3>
+        <p class="challenge-card-desc">@Challenge.Description</p>
+        <div class="challenge-card-meta">
+            <span class="tag">@Challenge.Category.ToLabel()</span>
+            <span class="tag">@Challenge.TimeParMinutes min par</span>
+            @if (Challenge.IsRoomLocked) { <span class="tag tag-locked">Room locked</span> }
+        </div>
+    </div>
+    <div class="challenge-card-footer">
+        @if (Progress?.BestScore is int best)
+        {
+            <span class="best-score">Best: <strong>@best / @Challenge.MaxScore</strong></span>
+        }
+        @if (Progress?.Status != ChallengeStatus.Locked && OnSelect.HasDelegate)
+        {
+            <button class="button button-primary button-sm" @onclick="() => OnSelect.InvokeAsync(Challenge.Id)">
+                @(Progress?.Status == ChallengeStatus.Completed ? "Retry" : "Start")
+            </button>
+        }
+        else if (Progress?.Status == ChallengeStatus.Locked)
+        {
+            <span class="lock-note">Complete prerequisites to unlock</span>
+        }
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public Challenge Challenge { get; set; } = default!;
+    [Parameter] public ChallengeProgressItem? Progress { get; set; }
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+}

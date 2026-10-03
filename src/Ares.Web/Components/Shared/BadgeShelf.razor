@@ -1,0 +1,26 @@
+@using Ares.Web.Models
+
+<div class="badge-shelf" aria-label="Earned badges">
+    @if (!Badges.Any())
+    {
+        <p class="muted">No badges earned yet. Complete challenges to earn your first badge.</p>
+    }
+    else
+    {
+        @foreach (var badge in Badges)
+        {
+            <div class="badge-item" title="@badge.Name — @badge.Description (earned @badge.EarnedAt.ToString("MMM d, yyyy"))">
+                <div class="badge-icon" aria-hidden="true">🏅</div>
+                <div class="badge-info">
+                    <strong class="badge-name">@badge.Name</strong>
+                    <small class="badge-desc">@badge.Description</small>
+                    <small class="muted">@badge.EarnedAt.ToString("MMM d, yyyy")</small>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<UserBadge> Badges { get; set; } = [];
+}

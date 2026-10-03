@@ -1,0 +1,42 @@
+@using Ares.Web.Models
+
+<article class="score-breakdown-card" aria-labelledby="score-heading-@_id">
+    <div class="score-total-row">
+        <div>
+            <p class="eyebrow">Your score</p>
+            <p class="score-total" id="score-heading-@_id" aria-label="@Score.Total out of @Score.MaxTotal">
+                <span class="score-number">@Score.Total</span><span class="score-denom"> / @Score.MaxTotal</span>
+            </p>
+        </div>
+        <div class="score-bar-wrap" aria-hidden="true">
+            <div class="score-bar">
+                <div class="score-bar-fill" style="width: @(Score.Total * 100 / Math.Max(1, Score.MaxTotal))%"></div>
+            </div>
+        </div>
+    </div>
+    <p class="score-summary">@Score.Summary</p>
+    @if (Score.Components.Count > 0)
+    {
+        <table class="score-components" aria-label="Score breakdown">
+            <thead><tr><th scope="col">Component</th><th scope="col" class="pts-col">Points</th><th scope="col" class="pts-col">Max</th></tr></thead>
+            <tbody>
+                @foreach (var c in Score.Components)
+                {
+                    <tr>
+                        <td>
+                            <strong>@c.Label</strong>
+                            <small class="score-explanation">@c.Explanation</small>
+                        </td>
+                        <td class="pts-col">@c.Points.ToString("F1")</td>
+                        <td class="pts-col muted">@c.MaxPoints.ToString("F0")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired] public ScoreBreakdown Score { get; set; } = default!;
+    private readonly string _id = Guid.NewGuid().ToString("N")[..8];
+}
