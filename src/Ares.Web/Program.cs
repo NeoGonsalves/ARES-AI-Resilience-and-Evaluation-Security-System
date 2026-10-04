@@ -13,6 +13,7 @@ builder.Services.AddSingleton<IDataProtectionProvider, EphemeralDataProtectionPr
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddSingleton<IQdrantCorpusService, MockQdrantCorpusService>();
 builder.Services.AddScoped<MockAresApiClient>();
 builder.Services.AddHttpClient<FastApiAresApiClient>(client =>
 {
