@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     prompt_fingerprint_secret: str = "development-only-change-me"
     execution_payload_encryption_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
+    groq_api_key: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
+    qdrant_url: str = "https://c8cc3800-bb1b-48df-b26a-2de8dd1e35a4.ca-central-1-0.aws.cloud.qdrant.io"
+    qdrant_api_key: SecretStr | None = None
     run_worker: bool = True
     provider_timeout_seconds: float = 60
     cors_origins: str = "http://localhost:5149,https://localhost:7149"

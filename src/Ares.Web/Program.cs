@@ -14,24 +14,33 @@ builder.Services.AddSingleton<IDataProtectionProvider, EphemeralDataProtectionPr
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddSingleton<IQdrantCorpusService, MockQdrantCorpusService>();
+builder.Services.AddSingleton<MockQdrantCorpusService>();
 builder.Services.AddScoped<MockAresApiClient>();
 
 var useMock = builder.Configuration.GetValue<bool>("Ares:UseMock", defaultValue: false);
+var baseUrl = builder.Configuration["Ares:ApiBaseUrl"] ?? "http://localhost:8000";
+
 if (useMock)
 {
     builder.Services.AddScoped<IAresApiClient>(provider => provider.GetRequiredService<MockAresApiClient>());
+    builder.Services.AddSingleton<IQdrantCorpusService>(provider => provider.GetRequiredService<MockQdrantCorpusService>());
 }
 else
 {
     builder.Services.AddHttpClient<FastApiAresApiClient>(client =>
     {
-        var baseUrl = builder.Configuration["Ares:ApiBaseUrl"] ?? "http://localhost:8000";
         client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
         client.Timeout = TimeSpan.FromSeconds(120);
         client.DefaultRequestHeaders.Add("X-Ares-User-Email", builder.Configuration["Ares:DevelopmentUserEmail"] ?? "developer@local");
     });
     builder.Services.AddScoped<IAresApiClient>(provider => provider.GetRequiredService<FastApiAresApiClient>());
+
+    builder.Services.AddHttpClient<RealQdrantCorpusService>(client =>
+    {
+        client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+    builder.Services.AddScoped<IQdrantCorpusService>(provider => provider.GetRequiredService<RealQdrantCorpusService>());
 }
 
 var app = builder.Build();

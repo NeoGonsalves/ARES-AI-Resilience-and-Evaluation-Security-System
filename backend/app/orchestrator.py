@@ -118,7 +118,13 @@ class TestOrchestrator:
                 run.encrypted_execution_payload = None
                 db.commit()
                 return
-            analysis = analyze_response(result.output_text, payload["attack_categories"])
+            analysis = await analyze_response(
+                result.output_text,
+                payload["attack_categories"],
+                attack_prompt=payload.get("user_prompt", ""),
+                system_prompt=payload.get("system_prompt", ""),
+                settings=self._settings,
+            )
             run.findings.append(
                 Finding(
                     category=payload["attack_categories"][0],
@@ -129,15 +135,28 @@ class TestOrchestrator:
                     safe_summary=analysis.safe_summary,
                 )
             )
-            run.evidence.append(
-                Evidence(
-                    source="OpenAI Responses API",
-                    category=payload["attack_categories"][0],
-                    summary="Provider output was assessed in memory; raw output was not retained.",
-                    similarity=None,
-                    redacted=True,
+            if analysis.evidence_items:
+                for ev in analysis.evidence_items:
+                    run.evidence.append(
+                        Evidence(
+                            source=ev.get("source", "ARES Evaluation"),
+                            category=ev.get("category", payload["attack_categories"][0]),
+                            summary=ev.get("summary", "Assessed by security engine."),
+                            similarity=ev.get("similarity"),
+                            redacted=True,
+                        )
+                    )
+            else:
+                run.evidence.append(
+                    Evidence(
+                        source=payload.get("provider", "Provider API"),
+                        category=payload["attack_categories"][0],
+                        summary="Provider output was assessed in memory; raw output was not retained.",
+                        similarity=None,
+                        redacted=True,
+                    )
                 )
-            )
+
             run.status = TestRunStatus.completed
             run.completed_at = datetime.now(timezone.utc)
             run.duration_milliseconds = int((time.perf_counter() - started) * 1000)
