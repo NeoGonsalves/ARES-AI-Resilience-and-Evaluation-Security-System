@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ares
+      POSTGRES_USER: ares
+      POSTGRES_PASSWORD: ares
+    ports:
+      - "5432:5432"
+    volumes:
+      - ares_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ares -d ares"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://ares:ares@postgres:5432/ares
+      AUTO_CREATE_SCHEMA: "false"
+      ALLOW_DEV_IDENTITY: "true"
+      CORS_ORIGINS: http://localhost:5149,https://localhost:7149
+      PROMPT_FINGERPRINT_SECRET: ${PROMPT_FINGERPRINT_SECRET:?set-in-backend-env}
+      EXECUTION_PAYLOAD_ENCRYPTION_KEY: ${EXECUTION_PAYLOAD_ENCRYPTION_KEY:?set-in-backend-env}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set-in-backend-env}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  ares_postgres_data:

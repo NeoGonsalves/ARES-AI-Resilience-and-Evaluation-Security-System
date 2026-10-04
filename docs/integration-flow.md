@@ -127,3 +127,28 @@ The UI never renders error bodies as HTML. It uses the user-safe message and cor
 3. Send an `X-Correlation-ID` for every request and pass cancellation tokens to `SendAsync`.
 4. Map non-success responses into `ApiError`; only retry endpoints marked retryable.
 5. Keep the page and reusable components unchanged; remove the mock registration only after endpoint contract tests pass.
+
+## Arena private progression flow
+
+```mermaid
+sequenceDiagram
+  actor Learner
+  participant Arena as Blazor Arena
+  participant API as FastAPI
+  participant Engine as Test orchestrator
+  participant Store as Progress store
+  Learner->>Arena: Open private challenge
+  Arena->>API: Get challenge + own progress
+  Learner->>Arena: Run controlled attempt
+  Arena->>API: Create test run
+  API->>Engine: Evaluate selected mock/production test
+  Engine-->>API: Redacted analysis
+  API-->>Arena: Completed run
+  Learner->>Arena: Submit for score
+  Arena->>API: Challenge ID + test run ID
+  API->>Store: Verify owner, score, update XP/badges
+  Store-->>API: Private score and next challenge
+  API-->>Arena: Submission result
+```
+
+The profile scope is always the authenticated user. Optional rooms are metadata that organize challenges; they do not grant access to another user's records or impose participation in a learning path.

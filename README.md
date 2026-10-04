@@ -9,7 +9,7 @@ ARES is an Adaptive Red-Teaming, Prompt Hardening, and Runtime Enforcement works
 3. Run `dotnet run --project src/Ares.Web` and open the reported local URL.
 4. Run `dotnet test Ares.sln` for the logic tests.
 
-The prototype makes no AI-provider or production API calls. `MockAresApiClient` is the replaceable boundary for the planned FastAPI service. See [documentation](docs/integration-flow.md).
+The prototype makes no AI-provider or production API calls. `MockAresApiClient` is the replaceable boundary for the planned FastAPI service. See the [implementation guide](docs/implementation-guide.md), [Arena challenge system](docs/arena-challenge-system.md), and [integration flow](docs/integration-flow.md).
 
 ## Security note
 

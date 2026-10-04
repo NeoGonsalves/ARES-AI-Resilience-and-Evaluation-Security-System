@@ -1,0 +1,164 @@
+@page "/arena/challenges"
+@implements IDisposable
+@inject IAresApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Challenge Browser · ARES Arena</PageTitle>
+
+<section class="page-intro">
+    <div><p class="eyebrow">ARES Arena</p><h1>Challenges</h1><p>Filter by track, difficulty, and category. Click any available challenge to open the workspace.</p></div>
+    <a class="button button-quiet" href="/arena">← Hub</a>
+</section>
+
+<!-- Filters -->
+<section class="challenge-filters" aria-label="Challenge filters">
+    <TrackToggle Selected="@_track" OnSelect="SetTrack" />
+    <div class="filter-row">
+        <div class="filter-group">
+            <label for="tier-filter">Difficulty</label>
+            <select id="tier-filter" @onchange="SetTier">
+                <option value="">All difficulties</option>
+                @foreach (var t in Enum.GetValues<DifficultyTier>())
+                {
+                    <option value="@t" selected="@(_tier == t)">@t.ToLabel()</option>
+                }
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="cat-filter">Category</label>
+            <select id="cat-filter" @onchange="SetCategory">
+                <option value="">All categories</option>
+                @foreach (var c in Enum.GetValues<AttackCategory>())
+                {
+                    <option value="@c" selected="@(_category == c)">@c.ToLabel()</option>
+                }
+            </select>
+        </div>
+        <div class="filter-group filter-search">
+            <label for="search-filter">Search</label>
+            <input id="search-filter" type="search" placeholder="Title or tag…" value="@_search"
+                   @oninput="SetSearch" aria-label="Search challenges by title or tag" />
+        </div>
+    </div>
+</section>
+
+@if (_loading)
+{
+    <LoadingState Message="Loading challenges…" />
+}
+else if (_result is null)
+{
+    <ErrorState Title="Could not load challenges" Message="Retry when the API boundary is responsive." Retry="LoadAsync" />
+}
+else
+{
+    <section class="challenge-results" aria-live="polite" aria-label="Challenge results">
+        <p class="results-count">@_result.TotalCount challenge@(_result.TotalCount == 1 ? "" : "s") found</p>
+
+        @if (_result.Items.Count == 0)
+        {
+            <EmptyState Eyebrow="No results" Title="No challenges match your filters." Message="Try adjusting the track, difficulty, or category filters." />
+        }
+        else
+        {
+            <table class="challenge-table" aria-label="Challenge list">
+                <thead>
+                    <tr>
+                        <th scope="col">Challenge</th>
+                        <th scope="col">Track</th>
+                        <th scope="col">Difficulty</th>
+                        <th scope="col">Category</th>
+                        <th scope="col">Par</th>
+                        <th scope="col">Best score</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="sr-only">Action</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var ch in _result.Items)
+                    {
+                        var prog = _result.Progress.FirstOrDefault(p => p.ChallengeId == ch.Id);
+                        var status = prog?.Status ?? ChallengeStatus.Available;
+                        var locked = status == ChallengeStatus.Locked;
+                        <tr class="@(locked ? "row-locked" : "") @ch.Track.ToCssClass()" @onclick="() => Open(ch.Id, locked)"
+                            style="cursor: @(locked ? "not-allowed" : "pointer")"
+                            aria-label="@ch.Title — @(locked ? "locked" : "open challenge")">
+                            <td>
+                                <strong>@ch.Title</strong>
+                                <div class="tag-list">
+                                    @foreach (var tag in ch.Tags.Take(3)) { <span class="tag">@tag</span> }
+                                </div>
+                            </td>
+                            <td><span class="track-pill @ch.Track.ToCssClass()">@ch.Track.ToIcon() @ch.Track.ToLabel()</span></td>
+                            <td><DifficultyBadge Value="@ch.Tier" /></td>
+                            <td>@ch.Category.ToLabel()</td>
+                            <td>@ch.TimeParMinutes min</td>
+                            <td>@(prog?.BestScore.HasValue == true ? $"{prog.BestScore} / {ch.MaxScore}" : "—")</td>
+                            <td><span class="status-pill status-@status.ToString().ToLowerInvariant()">@status.ToIcon() @status.ToLabel()</span></td>
+                            <td>
+                                @if (!locked)
+                                {
+                                    <button class="button button-sm button-primary" @onclick:stopPropagation @onclick="() => Open(ch.Id, false)">
+                                        @(status == ChallengeStatus.Completed ? "Retry" : "Start")
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="muted" title="Complete prerequisites to unlock">🔒</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            @if (_result.TotalCount > _result.PageSize)
+            {
+                <div class="pagination" aria-label="Pagination">
+                    <button class="button button-secondary" disabled="@(_page <= 1)" @onclick="PrevPage">← Prev</button>
+                    <span>Page @_page of @((_result.TotalCount + _result.PageSize - 1) / _result.PageSize)</span>
+                    <button class="button button-secondary" disabled="@(_result.Items.Count < _result.PageSize)" @onclick="NextPage">Next →</button>
+                </div>
+            }
+        }
+    </section>
+}
+
+@code {
+    [SupplyParameterFromQuery] private string? track { get; set; }
+
+    private ChallengePageResult? _result;
+    private bool _loading = true;
+    private ChallengeTrack? _track;
+    private DifficultyTier? _tier;
+    private AttackCategory? _category;
+    private string? _search;
+    private int _page = 1;
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Enum.TryParse<ChallengeTrack>(track, out var t)) _track = t;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try { _result = await Api.GetChallengesAsync(_track, _tier, _category, _search, _page, _cts.Token); }
+        catch (OperationCanceledException) { }
+        catch { _result = null; }
+        _loading = false;
+    }
+
+    private async Task SetTrack(ChallengeTrack? t) { _track = t; _page = 1; await LoadAsync(); }
+    private async Task SetTier(ChangeEventArgs e) { _tier = Enum.TryParse<DifficultyTier>(e.Value?.ToString(), out var v) ? v : null; _page = 1; await LoadAsync(); }
+    private async Task SetCategory(ChangeEventArgs e) { _category = Enum.TryParse<AttackCategory>(e.Value?.ToString(), out var v) ? v : null; _page = 1; await LoadAsync(); }
+    private async Task SetSearch(ChangeEventArgs e) { _search = e.Value?.ToString(); _page = 1; await LoadAsync(); }
+    private async Task PrevPage() { if (_page > 1) { _page--; await LoadAsync(); } }
+    private async Task NextPage() { _page++; await LoadAsync(); }
+    private void Open(string id, bool locked) { if (!locked) Nav.NavigateTo($"/arena/challenge/{id}"); }
+
+    public void Dispose() { _cts.Cancel(); _cts.Dispose(); }
+}

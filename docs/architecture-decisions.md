@@ -22,3 +22,13 @@
 ## Future authentication and authorization
 
 Use OIDC at the web/API boundary. Define at least `SecurityAnalyst`, `PromptEngineer`, `IncidentResponder`, and `Administrator` roles. Enforce application-level scopes on runs, corpus writes, exports, and incident views. API authorization is authoritative; hiding a UI control is not an authorization control.
+
+## Arena progression decisions
+
+| Decision | Rationale | Consequence |
+|---|---|---|
+| Individual-only progression | Arena is a learning surface, not a competition product. | No leaderboards, public profiles, or peer score APIs are built. |
+| Explicit score submission | Learners should inspect security analysis before earning progression. | Failed/cancelled/unanalysed tests cannot award XP. |
+| Optional rooms | Learners may prefer a catalogue or a guided path. | Rooms group and recommend challenges but never replace the full catalogue. |
+| Free-play separate from challenges | Exploration should not distort learning metrics. | Free-play retains test analysis but earns no XP or badges. |
+| Server-derived identity | Client user IDs are not trustworthy. | Production FastAPI derives profile scope from OIDC claims and enforces ownership of tests/submissions. |

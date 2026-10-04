@@ -1,0 +1,21 @@
+@using Ares.Web.Models
+
+<div class="xp-progress" aria-label="Level @Level — @XpThisLevel of @XpToNextLevel XP to next level">
+    <div class="xp-labels">
+        <span class="xp-level">Level <strong>@Level</strong></span>
+        <span class="xp-numbers">@XpThisLevel <span class="muted">/ @XpToNextLevel XP</span></span>
+    </div>
+    <div class="xp-bar" role="progressbar" aria-valuenow="@XpThisLevel" aria-valuemin="0" aria-valuemax="@XpToNextLevel">
+        <div class="xp-bar-fill" style="width: @_percent%"></div>
+    </div>
+    <p class="xp-total muted">Total XP: @XpTotal</p>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int Level { get; set; }
+    [Parameter, EditorRequired] public int XpThisLevel { get; set; }
+    [Parameter, EditorRequired] public int XpToNextLevel { get; set; }
+    [Parameter, EditorRequired] public int XpTotal { get; set; }
+
+    private int _percent => XpToNextLevel > 0 ? (int)Math.Round(XpThisLevel * 100.0 / XpToNextLevel) : 0;
+}

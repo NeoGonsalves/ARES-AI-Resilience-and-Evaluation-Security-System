@@ -11,6 +11,7 @@ appsettings.Development.local.json
 # Python
 venv/
 .venv/
+backend/.venv/
 __pycache__/
 *.py[cod]
 *$py.class
@@ -18,3 +19,6 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Local databases
+backend/*.db

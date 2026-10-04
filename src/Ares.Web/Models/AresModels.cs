@@ -120,3 +120,168 @@ public sealed record SearchResponse(string Query, int TotalHits, IReadOnlyList<S
 public sealed record HardenRequest(string SystemPrompt, string ApplicationName = "ARES App", string Domain = "general");
 public sealed record HardenResponse(string HardenedPrompt, int BaselineScore, int HardenedScore,
     int ImprovementPoints, string StrategyApplied, int TokenOverhead, DateTimeOffset GeneratedAt);
+
+// Qdrant Vector Corpus & RAG Schemas
+public sealed record AttackCorpusPayload(
+    [property: JsonPropertyName("attack_id")] string AttackId,
+    [property: JsonPropertyName("test_id")] string TestId,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("category")] AttackCategory Category,
+    [property: JsonPropertyName("severity")] Severity Severity,
+    [property: JsonPropertyName("source")] AttackSource Source,
+    [property: JsonPropertyName("sanitized_prompt")] string SanitizedPrompt,
+    [property: JsonPropertyName("prompt_sha256")] string PromptSha256,
+    [property: JsonPropertyName("target_providers")] IReadOnlyList<AiProvider> TargetProviders,
+    [property: JsonPropertyName("success_rate")] double SuccessRate,
+    [property: JsonPropertyName("analyst_note")] string? AnalystNote,
+    [property: JsonPropertyName("is_redacted")] bool IsRedacted,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt);
+
+public sealed record DefenseHeuristicPayload(
+    [property: JsonPropertyName("heuristic_id")] string HeuristicId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("target_category")] AttackCategory TargetCategory,
+    [property: JsonPropertyName("severity_tier")] Severity SeverityTier,
+    [property: JsonPropertyName("framing_rule")] string FramingRule,
+    [property: JsonPropertyName("recommended_template")] string RecommendedTemplate,
+    [property: JsonPropertyName("effectiveness_score")] int EffectivenessScore,
+    [property: JsonPropertyName("provider_compatibility")] IReadOnlyList<AiProvider> ProviderCompatibility,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt);
+
+public sealed record QdrantVectorPoint<TPayload>(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("vector")] IReadOnlyList<float> Vector,
+    [property: JsonPropertyName("payload")] TPayload Payload);
+
+public sealed record QdrantSearchQuery(
+    [property: JsonPropertyName("collection_name")] string CollectionName,
+    [property: JsonPropertyName("vector")] IReadOnlyList<float> Vector,
+    [property: JsonPropertyName("limit")] int Limit = 5,
+    [property: JsonPropertyName("score_threshold")] double ScoreThreshold = 0.75,
+    [property: JsonPropertyName("filter_category")] AttackCategory? FilterCategory = null);
+
+public sealed record QdrantSearchResult<TPayload>(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("score")] double Score,
+    [property: JsonPropertyName("payload")] TPayload Payload);
+
+public sealed record RagRetrievalResult(
+    IReadOnlyList<QdrantSearchResult<AttackCorpusPayload>> MatchedAttacks,
+    IReadOnlyList<QdrantSearchResult<DefenseHeuristicPayload>> ApplicableDefenses,
+    double MaxRiskScore,
+    DateTimeOffset RetrievedAt);
+// ── Arena Platform ────────────────────────────────────────────────────────────
+
+public enum ChallengeTrack { Attacker, Defender }
+
+public enum DifficultyTier { Beginner, Intermediate, Advanced, Expert }
+
+public enum ChallengeStatus { Locked, Available, InProgress, Completed, Skipped }
+
+public enum BadgeType
+{
+    FirstBlood, InjectionSpecialist, ExtractionArtist, DataExfilPrevented,
+    PolicyGuardian, RoleDefender, ToolWarden, ObfuscationBreaker,
+    PromptHardener, DefenderElite, RedTeamRookie, SpeedDemon,
+    Perfectionist, RoomMaster, PathComplete
+}
+
+public sealed record Challenge(
+    string Id,
+    string Title,
+    string Description,
+    ChallengeTrack Track,
+    DifficultyTier Tier,
+    AttackCategory Category,
+    string ScenarioContext,
+    string Objective,
+    string? Hint,
+    DifficultyTier ModelTier,
+    int TimeParMinutes,
+    int MaxScore,
+    bool IsRoomLocked,
+    IReadOnlyList<string> Tags);
+
+public sealed record ChallengeRoom(
+    string Id,
+    string Title,
+    string Description,
+    string Theme,
+    IReadOnlyList<string> ChallengeIds,
+    IReadOnlyList<string> PrerequisiteRoomIds,
+    string BadgeAwardedId);
+
+public sealed record LearningPath(
+    string Id,
+    string Name,
+    string Description,
+    IReadOnlyList<string> RoomIds,
+    BadgeType BadgeAwarded,
+    string Colour);
+
+public sealed record ScoreComponent(string Label, double Points, double MaxPoints, string Explanation);
+
+public sealed record ScoreBreakdown(
+    int Total,
+    int MaxTotal,
+    IReadOnlyList<ScoreComponent> Components,
+    string Summary);
+
+public sealed record ChallengeSubmission(
+    string Id,
+    string ChallengeId,
+    string UserId,
+    string TestRunId,
+    ScoreBreakdown Score,
+    DateTimeOffset SubmittedAt,
+    bool IsBest);
+
+public sealed record UserBadge(BadgeType Type, string Name, string Description, DateTimeOffset EarnedAt, string ChallengeId);
+
+public sealed record UserProfile(
+    string Id,
+    string DisplayName,
+    string Initials,
+    int XpTotal,
+    int Level,
+    int XpThisLevel,
+    int XpToNextLevel,
+    IReadOnlyList<UserBadge> Badges,
+    int ChallengesSolved,
+    int AttackerSolved,
+    int DefenderSolved,
+    DateTimeOffset MemberSince);
+
+public sealed record ChallengeProgressItem(
+    string ChallengeId,
+    string Title,
+    ChallengeTrack Track,
+    DifficultyTier Tier,
+    ChallengeStatus Status,
+    int? BestScore,
+    DateTimeOffset? LastAttemptAt);
+
+public sealed record OrgAssessment(
+    string Id,
+    string OrgName,
+    string Title,
+    IReadOnlyList<string> ChallengeIds,
+    DateTimeOffset OpensAt,
+    DateTimeOffset ClosesAt,
+    string AccessCode,
+    bool IsActive);
+
+public sealed record ChallengePageResult(
+    IReadOnlyList<Challenge> Items,
+    IReadOnlyList<ChallengeProgressItem> Progress,
+    int TotalCount,
+    int Page,
+    int PageSize);
+
+// New request/response DTOs
+public sealed record SubmitChallengeRequest(string ChallengeId, string TestRunId);
+public sealed record SubmitChallengeResponse(ChallengeSubmission Submission, bool BadgeUnlocked, UserBadge? Badge, string? NextChallengeId);
+public sealed record CreateOrgAssessmentRequest(OrgAssessment Draft);
+public sealed record CreateChallengeRequest(Challenge Draft);
+public sealed record UpdateChallengeRequest(Challenge Updated);
+

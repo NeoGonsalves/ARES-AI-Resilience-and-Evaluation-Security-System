@@ -1,0 +1,28 @@
+@using Ares.Web.Models
+
+@{
+    var pct = TotalChallenges > 0 ? (int)Math.Round(Completed * 100.0 / TotalChallenges) : 0;
+    var radius = 40;
+    var circumference = 2 * Math.PI * radius;
+    var dashOffset = circumference * (1 - pct / 100.0);
+}
+
+<div class="room-progress-ring" aria-label="@Completed of @TotalChallenges challenges completed (@pct%)">
+    <svg viewBox="0 0 100 100" width="88" height="88" aria-hidden="true">
+        <circle class="ring-track" cx="50" cy="50" r="@radius" fill="none" stroke-width="8" />
+        <circle class="ring-fill" cx="50" cy="50" r="@radius" fill="none" stroke-width="8"
+                stroke-dasharray="@circumference.ToString("F2")"
+                stroke-dashoffset="@dashOffset.ToString("F2")"
+                transform="rotate(-90 50 50)" />
+        <text x="50" y="50" text-anchor="middle" dominant-baseline="central" class="ring-pct-text">@pct%</text>
+    </svg>
+    <div class="ring-label">
+        <span>@Completed / @TotalChallenges</span>
+        <small>challenges</small>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int Completed { get; set; }
+    [Parameter, EditorRequired] public int TotalChallenges { get; set; }
+}

@@ -1,28 +1,37 @@
 using Ares.Web;
 using Ares.Web.Services;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
+// This unauthenticated prototype has no durable protected state. Avoid persisting
+// development keys to a user profile; production authentication will replace this.
+builder.Services.AddSingleton<IDataProtectionProvider, EphemeralDataProtectionProvider>();
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Toggle between live FastAPI client and local mock via appsettings.json
+builder.Services.AddSingleton<IQdrantCorpusService, MockQdrantCorpusService>();
+builder.Services.AddScoped<MockAresApiClient>();
+
 var useMock = builder.Configuration.GetValue<bool>("Ares:UseMock", defaultValue: false);
 if (useMock)
 {
-    builder.Services.AddSingleton<IAresApiClient, MockAresApiClient>();
+    builder.Services.AddScoped<IAresApiClient>(provider => provider.GetRequiredService<MockAresApiClient>());
 }
 else
 {
-    var baseUrl = builder.Configuration["Ares:ApiBaseUrl"] ?? "http://localhost:8000";
-    builder.Services.AddHttpClient<IAresApiClient, HttpAresApiClient>(c =>
+    builder.Services.AddHttpClient<FastApiAresApiClient>(client =>
     {
-        c.BaseAddress = new Uri(baseUrl);
-        c.Timeout = TimeSpan.FromSeconds(120); // evaluations can take up to 2 min
+        var baseUrl = builder.Configuration["Ares:ApiBaseUrl"] ?? "http://localhost:8000";
+        client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+        client.Timeout = TimeSpan.FromSeconds(120);
+        client.DefaultRequestHeaders.Add("X-Ares-User-Email", builder.Configuration["Ares:DevelopmentUserEmail"] ?? "developer@local");
     });
+    builder.Services.AddScoped<IAresApiClient>(provider => provider.GetRequiredService<FastApiAresApiClient>());
 }
 
 var app = builder.Build();
