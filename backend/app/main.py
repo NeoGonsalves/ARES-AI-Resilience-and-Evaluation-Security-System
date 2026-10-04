@@ -30,6 +30,14 @@ from app.schemas import (
     ArenaSubmissionCreate,
 )
 from app.security import PayloadCipher, payload_expiry
+from ares.api.routes import (
+    corpus as ares_corpus,
+    dashboard as ares_dashboard,
+    harden as ares_harden,
+    search as ares_search,
+    stats as ares_stats,
+    tests as ares_tests,
+)
 
 settings = get_settings()
 orchestrator = TestOrchestrator(settings)
@@ -74,6 +82,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Unified ARES Vector Security, ML Analytics, and Hardening Routers
+app.include_router(ares_dashboard.router)
+app.include_router(ares_stats.router)
+app.include_router(ares_search.router)
+app.include_router(ares_harden.router)
+app.include_router(ares_corpus.router)
+app.include_router(ares_tests.router)
+
+# Explicit v1 aliases for frontend compatibility
+@app.get("/api/v1/stats", tags=["stats"])
+async def v1_stats():
+    return await ares_stats.get_stats()
+
+@app.post("/api/v1/stats/retrain", tags=["stats"])
+async def v1_stats_retrain():
+    return await ares_stats.retrain_stats()
+
+@app.post("/api/v1/search", tags=["search"])
+async def v1_search(req: ares_search.SearchRequest):
+    return await ares_search.search_attacks(req)
+
+@app.post("/api/v1/harden", tags=["harden"])
+async def v1_harden(req: ares_harden.HardenRequest):
+    return await ares_harden.harden(req)
+
+
+@app.get("/healthz", tags=["health"])
+@app.get("/health", tags=["health"])
+async def healthz() -> dict:
+    """Unified service health probe."""
+    return {"status": "ok", "service": "ARES Unified API"}
 
 
 @app.middleware("http")

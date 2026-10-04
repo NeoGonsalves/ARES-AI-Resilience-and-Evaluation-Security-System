@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     qdrant_api_key: SecretStr | None = None
     run_worker: bool = True
     provider_timeout_seconds: float = 60
-    cors_origins: str = "http://localhost:5149,https://localhost:7149"
+    cors_origins: str = "http://localhost:5000,https://localhost:5001,http://localhost:5149,https://localhost:7149,http://localhost:5180,https://localhost:7180"
 
     @property
     def cors_origin_list(self) -> list[str]:
