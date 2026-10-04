@@ -23,6 +23,9 @@ else if (_stats is not null)
         <div class="intro-meta">
             <span>Report generated</span>
             <strong>@_stats.GeneratedAt.ToString("dd MMM yyyy, HH:mm") UTC</strong>
+            <button class="button button-secondary" style="font-size:0.85rem;padding:0.35rem 0.75rem;" disabled="@_retraining" @onclick="RetrainAsync">
+                @(_retraining ? "Retraining Model…" : "⚡ Retrain Model")
+            </button>
             <button class="text-button" @onclick="LoadAsync">Refresh</button>
         </div>
     </section>
@@ -109,6 +112,7 @@ else if (_stats is not null)
     private readonly CancellationTokenSource _cts = new();
     private StatsResponse? _stats;
     private bool _loading = true;
+    private bool _retraining = false;
     private string? _error;
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -119,6 +123,23 @@ else if (_stats is not null)
         try   { _stats = await Api.GetStatsAsync(_cts.Token); }
         catch { _error = "Failed to load ML analytics."; }
         finally { _loading = false; }
+    }
+
+    private async Task RetrainAsync()
+    {
+        _retraining = true;
+        try
+        {
+            _stats = await Api.RetrainStatsAsync(_cts.Token);
+        }
+        catch
+        {
+            _error = "Retraining failed. Check backend logs.";
+        }
+        finally
+        {
+            _retraining = false;
+        }
     }
 
     public void Dispose() => _cts.Cancel();

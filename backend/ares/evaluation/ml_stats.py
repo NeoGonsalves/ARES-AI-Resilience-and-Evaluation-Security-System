@@ -346,3 +346,75 @@ class AttackVectorMLAnalyzer:
             feature_stats=feat_stats,
             model_performance=model_perf,
         )
+
+
+def auto_retrain_and_update_report(
+    store: Optional[QdrantStore] = None,
+    report_path: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """
+    Retrains the attack vector classifier against the active Qdrant store
+    and updates ml_vector_analysis_report.json.
+    """
+    import json
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    analyzer = AttackVectorMLAnalyzer(store=store)
+    report = analyzer.compute_analysis()
+
+    target_path = Path(report_path) if report_path else (Path(__file__).parent.parent.parent / "ml_vector_analysis_report.json")
+
+    # Build comprehensive payload supporting both nested and flat schemas
+    data = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        # Flat legacy/direct fields
+        "sample_count": report.vector_stats.sample_count,
+        "vector_dim": report.vector_stats.vector_dim,
+        "pairwise_similarity_mean": report.vector_stats.pairwise_similarity_mean,
+        "pairwise_similarity_std": report.vector_stats.pairwise_similarity_std,
+        "pca_top_3_variance": report.vector_stats.pca_top_3_variance,
+        "pca_cumulative_variance_top_5": report.vector_stats.pca_cumulative_variance_top_5,
+        "silhouette_score": report.vector_stats.silhouette_score,
+        "category_counts": report.feature_stats.category_counts,
+        "classifier_name": report.model_performance.model_name,
+        "cv_mean_accuracy": report.model_performance.cv_mean_accuracy,
+        "cv_std_accuracy": report.model_performance.cv_std_accuracy,
+        "classification_report": report.model_performance.classification_report,
+        "confusion_matrix": report.model_performance.confusion_matrix,
+        # Nested object fields for schema completeness
+        "vector_stats": {
+            "total_vectors": report.vector_stats.sample_count,
+            "sample_count": report.vector_stats.sample_count,
+            "vector_dim": report.vector_stats.vector_dim,
+            "category_distribution": report.feature_stats.category_counts,
+            "pairwise_similarity_mean": report.vector_stats.pairwise_similarity_mean,
+            "pairwise_similarity_std": report.vector_stats.pairwise_similarity_std,
+            "pca_top_3_variance": report.vector_stats.pca_top_3_variance,
+            "pca_cumulative_variance_top_5": report.vector_stats.pca_cumulative_variance_top_5,
+            "silhouette_score": report.vector_stats.silhouette_score,
+        },
+        "feature_stats": {
+            "length_mean": report.feature_stats.length_mean,
+            "length_std": report.feature_stats.length_std,
+            "length_median": report.feature_stats.length_median,
+            "length_min": report.feature_stats.length_min,
+            "length_max": report.feature_stats.length_max,
+            "category_counts": report.feature_stats.category_counts,
+            "provider_counts": report.feature_stats.provider_counts,
+            "operator_counts": report.feature_stats.operator_counts,
+        },
+        "model_performance": {
+            "model_name": report.model_performance.model_name,
+            "cv_mean_accuracy": report.model_performance.cv_mean_accuracy,
+            "cv_std_accuracy": report.model_performance.cv_std_accuracy,
+            "classes": report.model_performance.classes,
+            "classification_report": report.model_performance.classification_report,
+            "confusion_matrix": report.model_performance.confusion_matrix,
+        },
+    }
+
+    target_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    logger.info("Updated ML vector analysis report at %s with %d samples", target_path, report.vector_stats.sample_count)
+    return data
+

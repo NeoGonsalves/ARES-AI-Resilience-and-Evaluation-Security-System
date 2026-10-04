@@ -30,9 +30,9 @@ async def get_stats() -> StatsResponse:
     data = json.loads(_REPORT_PATH.read_text(encoding="utf-8"))
 
     model_perf: Dict = data.get("model_performance", {})
-    cv_acc  = float(model_perf.get("cv_mean_accuracy", 0))
-    cv_std  = float(model_perf.get("cv_std_accuracy", 0))
-    cls_report: Dict = model_perf.get("classification_report", {})
+    cv_acc  = float(model_perf.get("cv_mean_accuracy", data.get("cv_mean_accuracy", 0.0)))
+    cv_std  = float(model_perf.get("cv_std_accuracy", data.get("cv_std_accuracy", 0.0)))
+    cls_report: Dict = model_perf.get("classification_report", data.get("classification_report", {}))
 
     # Overall accuracy from classification report
     overall_acc = float(cls_report.get("accuracy", cv_acc))
@@ -51,10 +51,14 @@ async def get_stats() -> StatsResponse:
             support=int(vals.get("support", 0)),
         ))
 
-    # Category counts from vector_stats
+    # Category counts from vector_stats or root
     vec_stats: Dict = data.get("vector_stats", {})
-    category_counts: Dict[str, int] = vec_stats.get("category_distribution", {})
-    corpus_size: int = vec_stats.get("total_vectors", sum(category_counts.values()))
+    category_counts: Dict[str, int] = vec_stats.get(
+        "category_distribution", data.get("category_counts", {})
+    )
+    corpus_size: int = vec_stats.get(
+        "total_vectors", data.get("sample_count", sum(category_counts.values()))
+    )
 
     # Timestamp
     ts_str = data.get("generated_at", datetime.now(timezone.utc).isoformat())
@@ -63,6 +67,8 @@ async def get_stats() -> StatsResponse:
     except Exception:
         generated_at = datetime.now(timezone.utc)
 
+    model_name = model_perf.get("model_name", data.get("classifier_name", "LogisticRegression(C=5, balanced)"))
+
     return StatsResponse(
         overall_accuracy=round(overall_acc * 100, 2),
         cv_accuracy=round(cv_acc * 100, 2),
@@ -70,6 +76,17 @@ async def get_stats() -> StatsResponse:
         corpus_size=corpus_size,
         category_counts=category_counts,
         category_breakdown=breakdown,
-        model_name=model_perf.get("model_name", "LogisticRegression"),
+        model_name=model_name,
         generated_at=generated_at,
     )
+
+
+@router.post("/stats/retrain", response_model=StatsResponse)
+async def retrain_stats() -> StatsResponse:
+    """Trigger continuous ML auto-retraining on the latest Qdrant vector corpus."""
+    import asyncio
+    from ares.evaluation.ml_stats import auto_retrain_and_update_report
+
+    await asyncio.to_thread(auto_retrain_and_update_report)
+    return await get_stats()
+

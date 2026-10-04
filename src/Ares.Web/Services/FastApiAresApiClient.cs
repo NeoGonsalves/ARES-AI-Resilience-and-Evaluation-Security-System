@@ -219,6 +219,43 @@ public sealed class FastApiAresApiClient : IAresApiClient
         }
     }
 
+    public async Task<StatsResponse> RetrainStatsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await _http.PostAsync("api/stats/retrain", null, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                using var fallback = await _http.PostAsync("api/v1/stats/retrain", null, cancellationToken);
+                if (fallback.IsSuccessStatusCode)
+                    return await fallback.Content.ReadFromJsonAsync<StatsResponse>(JsonOptions, cancellationToken) ?? await _learningFallback.RetrainStatsAsync(cancellationToken);
+                return await _learningFallback.RetrainStatsAsync(cancellationToken);
+            }
+            return await response.Content.ReadFromJsonAsync<StatsResponse>(JsonOptions, cancellationToken) ?? await _learningFallback.RetrainStatsAsync(cancellationToken);
+        }
+        catch
+        {
+            return await _learningFallback.RetrainStatsAsync(cancellationToken);
+        }
+    }
+
+    public async Task<string> GetReportAsync(string testId, string format, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await _http.GetAsync($"api/tests/{Uri.EscapeDataString(testId)}/report?format={Uri.EscapeDataString(format)}", cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync(cancellationToken);
+            }
+            return await _learningFallback.GetReportAsync(testId, format, cancellationToken);
+        }
+        catch
+        {
+            return await _learningFallback.GetReportAsync(testId, format, cancellationToken);
+        }
+    }
+
     public async Task<SearchResponse> SearchAsync(SearchRequest request, CancellationToken cancellationToken)
     {
         try

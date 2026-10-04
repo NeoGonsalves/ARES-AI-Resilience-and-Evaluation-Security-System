@@ -21,6 +21,8 @@ public interface IAresApiClient
 
     // Phase 6 — ML Stats, Semantic Search, and Prompt Hardening
     Task<StatsResponse> GetStatsAsync(CancellationToken cancellationToken);
+    Task<StatsResponse> RetrainStatsAsync(CancellationToken cancellationToken);
+    Task<string> GetReportAsync(string testId, string format, CancellationToken cancellationToken);
     Task<SearchResponse> SearchAsync(SearchRequest request, CancellationToken cancellationToken);
     Task<HardenResponse> HardenAsync(HardenRequest request, CancellationToken cancellationToken);
 

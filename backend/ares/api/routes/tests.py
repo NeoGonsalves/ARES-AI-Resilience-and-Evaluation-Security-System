@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
+from ares.evaluation.report_generator import SecurityAuditReportGenerator
 from ares.api.schemas import (
     AiProviderEnum,
     AttackCategoryEnum,
@@ -259,3 +260,44 @@ async def cancel_test(test_id: str) -> CancelTestResponse:
         status=TestRunStatusEnum.cancelled,
         correlation_id=uuid.uuid4().hex[:12],
     )
+
+
+@router.get("/{test_id}/report")
+async def get_test_report(test_id: str, format: str = "markdown"):
+    """Export comprehensive security audit report in markdown, HTML, or JSON format."""
+    generator = SecurityAuditReportGenerator()
+    data: Optional[Any] = None
+
+    if test_id in _test_store:
+        data = _test_store[test_id]
+    elif test_id.startswith("nemotron") or test_id == "latest":
+        report_file = _REPORTS_DIR / "nemotron_robustness_report.json"
+        if report_file.exists():
+            data = json.loads(report_file.read_text(encoding="utf-8"))
+    elif test_id.startswith("baseline"):
+        report_file = _REPORTS_DIR / "baseline_robustness_report.json"
+        if report_file.exists():
+            data = json.loads(report_file.read_text(encoding="utf-8"))
+
+    if not data:
+        # Fallback to the latest test run in memory or default report
+        if _test_store:
+            data = list(_test_store.values())[-1]
+        else:
+            report_file = _REPORTS_DIR / "nemotron_robustness_report.json"
+            if report_file.exists():
+                data = json.loads(report_file.read_text(encoding="utf-8"))
+            else:
+                raise HTTPException(status_code=404, detail=f"No evaluation data found for report '{test_id}'.")
+
+    fmt = format.lower()
+    if fmt == "html":
+        content = generator.generate_html(data)
+        return Response(content=content, media_type="text/html")
+    elif fmt == "json":
+        content = generator.generate_json(data)
+        return Response(content=content, media_type="application/json")
+    else:
+        content = generator.generate_markdown(data)
+        return Response(content=content, media_type="text/markdown")
+

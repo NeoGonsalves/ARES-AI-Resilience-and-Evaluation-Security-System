@@ -47,6 +47,9 @@ else
                     <span>Last run</span><strong>@latest.Timestamp.ToString("dd MMM yyyy, HH:mm")</strong>
                     <p>Provider: @latest.Provider · Model: @latest.Model</p>
                 </div>
+                <button class="button button-primary" style="width:100%;margin-bottom:0.5rem;" @onclick="() => ViewAuditReportAsync(latest.Id)">
+                    📄 View Security Audit Report
+                </button>
             }
             else
             {
@@ -125,6 +128,7 @@ else
                             <th scope="col">Provider</th>
                             <th scope="col">Risk score</th>
                             <th scope="col">Status</th>
+                            <th scope="col">Report</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -137,11 +141,28 @@ else
                                 <td>@item.Provider</td>
                                 <td><SeverityBadge Value="ScoreToSeverity(item.RiskScore)" /></td>
                                 <td><span class="table-status">@item.Status</span></td>
+                                <td><button class="text-button" @onclick="() => ViewAuditReportAsync(item.Id)">View Audit</button></td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_selectedReportContent))
+    {
+        <section class="surface-card" style="margin-top:1.5rem;" aria-labelledby="audit-viewer-heading">
+            <div class="section-heading compact">
+                <div>
+                    <p class="eyebrow">Security Audit Telemetry</p>
+                    <h2 id="audit-viewer-heading">Audit Report: @_selectedReportId</h2>
+                </div>
+                <div>
+                    <button class="button button-secondary" style="font-size:0.85rem;" @onclick="() => _selectedReportContent = null">Close</button>
+                </div>
+            </div>
+            <pre style="background:#040711;border:1px solid var(--border);padding:1rem;border-radius:6px;overflow-x:auto;font-size:0.85rem;color:#38bdf8;white-space:pre-wrap;max-height:450px;"><code>@_selectedReportContent</code></pre>
         </section>
     }
 }
@@ -176,6 +197,23 @@ else
         if (score < 60) return Severity.Medium;
         if (score < 80) return Severity.High;
         return Severity.Critical;
+    }
+
+    private string? _selectedReportId;
+    private string? _selectedReportContent;
+
+    private async Task ViewAuditReportAsync(string testId)
+    {
+        _selectedReportId = testId;
+        _selectedReportContent = "Generating security audit report…";
+        try
+        {
+            _selectedReportContent = await Api.GetReportAsync(testId, "markdown", _cts.Token);
+        }
+        catch
+        {
+            _selectedReportContent = $"# Error\n\nFailed to load audit report for test '{testId}'.";
+        }
     }
 
     public void Dispose() => _cts.Cancel();

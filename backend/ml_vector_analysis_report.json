@@ -1,105 +1,242 @@
 {
-  "sample_count": 2145,
+  "generated_at": "2026-10-04T11:48:30.587451+00:00",
+  "sample_count": 3695,
   "vector_dim": 768,
-  "pairwise_similarity_mean": 0.10720599442720413,
-  "pairwise_similarity_std": 0.2013881653547287,
+  "pairwise_similarity_mean": 0.08081905543804169,
+  "pairwise_similarity_std": 0.11733390390872955,
   "pca_top_3_variance": [
-    0.17419463396072388,
-    0.050629377365112305,
-    0.04288846254348755
+    0.05001441016793251,
+    0.029909327626228333,
+    0.023559316992759705
   ],
-  "pca_cumulative_variance_top_5": 0.3385031521320343,
-  "silhouette_score": -0.0537,
+  "pca_cumulative_variance_top_5": 0.14625799655914307,
+  "silhouette_score": 0.041,
   "category_counts": {
-    "instruction_override": 640,
-    "encoding_tricks": 227,
-    "delimiter_confusion": 505,
-    "role_play_hijack": 718,
-    "context_smuggling": 55
+    "context_smuggling": 1271,
+    "delimiter_confusion": 465,
+    "encoding_tricks": 812,
+    "role_play_hijack": 589,
+    "instruction_override": 558
   },
-  "classifier_name": "LogisticRegression(C=5, balanced) | TF-IDF(word1-2+char3-5, 800feat) + 15-Structural | CV=98.3% (+-0.5%)",
-  "cv_mean_accuracy": 0.9832167832167832,
-  "cv_std_accuracy": 0.004977658858755844,
+  "classifier_name": "LogisticRegression(C=5, balanced) | TF-IDF(word1-2+char3-5, 800feat) + 15-Structural | CV=100.0% (+-0.0%)",
+  "cv_mean_accuracy": 1.0,
+  "cv_std_accuracy": 0.0,
   "classification_report": {
     "context_smuggling": {
-      "precision": 0.6547619047619048,
+      "precision": 1.0,
       "recall": 1.0,
-      "f1-score": 0.7913669064748201,
-      "support": 55.0
+      "f1-score": 1.0,
+      "support": 1271.0
     },
     "delimiter_confusion": {
       "precision": 1.0,
-      "recall": 0.9861386138613861,
-      "f1-score": 0.9930209371884346,
-      "support": 505.0
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 465.0
     },
     "encoding_tricks": {
       "precision": 1.0,
-      "recall": 0.9691629955947136,
-      "f1-score": 0.9843400447427293,
-      "support": 227.0
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 812.0
     },
     "instruction_override": {
       "precision": 1.0,
-      "recall": 0.9875,
-      "f1-score": 0.9937106918238994,
-      "support": 640.0
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 558.0
     },
     "role_play_hijack": {
       "precision": 1.0,
-      "recall": 0.9902506963788301,
-      "f1-score": 0.9951014695591323,
-      "support": 718.0
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 589.0
     },
-    "accuracy": 0.9864801864801864,
+    "accuracy": 1.0,
     "macro avg": {
-      "precision": 0.930952380952381,
-      "recall": 0.9866104611669859,
-      "f1-score": 0.951508009957803,
-      "support": 2145.0
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 3695.0
     },
     "weighted avg": {
-      "precision": 0.9911477411477411,
-      "recall": 0.9864801864801864,
-      "f1-score": 0.9878338653629961,
-      "support": 2145.0
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 3695.0
     }
   },
   "confusion_matrix": [
     [
-      55,
+      1271,
       0,
       0,
       0,
       0
     ],
     [
-      7,
-      498,
+      0,
+      465,
       0,
       0,
       0
     ],
     [
-      7,
       0,
-      220,
+      0,
+      812,
       0,
       0
     ],
     [
-      8,
       0,
       0,
-      632,
+      0,
+      558,
       0
     ],
     [
-      7,
       0,
       0,
       0,
-      711
+      0,
+      589
     ]
-  ]
+  ],
+  "vector_stats": {
+    "total_vectors": 3695,
+    "sample_count": 3695,
+    "vector_dim": 768,
+    "category_distribution": {
+      "context_smuggling": 1271,
+      "delimiter_confusion": 465,
+      "encoding_tricks": 812,
+      "role_play_hijack": 589,
+      "instruction_override": 558
+    },
+    "pairwise_similarity_mean": 0.08081905543804169,
+    "pairwise_similarity_std": 0.11733390390872955,
+    "pca_top_3_variance": [
+      0.05001441016793251,
+      0.029909327626228333,
+      0.023559316992759705
+    ],
+    "pca_cumulative_variance_top_5": 0.14625799655914307,
+    "silhouette_score": 0.041
+  },
+  "feature_stats": {
+    "length_mean": 143.53071718538567,
+    "length_std": 30.512998909688328,
+    "length_median": 142.0,
+    "length_min": 47,
+    "length_max": 242,
+    "category_counts": {
+      "context_smuggling": 1271,
+      "delimiter_confusion": 465,
+      "encoding_tricks": 812,
+      "role_play_hijack": 589,
+      "instruction_override": 558
+    },
+    "provider_counts": {
+      "unknown": 3695
+    },
+    "operator_counts": {
+      "none": 3255,
+      "leetspeak": 440
+    }
+  },
+  "model_performance": {
+    "model_name": "LogisticRegression(C=5, balanced) | TF-IDF(word1-2+char3-5, 800feat) + 15-Structural | CV=100.0% (+-0.0%)",
+    "cv_mean_accuracy": 1.0,
+    "cv_std_accuracy": 0.0,
+    "classes": [
+      "context_smuggling",
+      "delimiter_confusion",
+      "encoding_tricks",
+      "instruction_override",
+      "role_play_hijack"
+    ],
+    "classification_report": {
+      "context_smuggling": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 1271.0
+      },
+      "delimiter_confusion": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 465.0
+      },
+      "encoding_tricks": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 812.0
+      },
+      "instruction_override": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 558.0
+      },
+      "role_play_hijack": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 589.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 3695.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 3695.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        1271,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        465,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        812,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        558,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        589
+      ]
+    ]
+  }
 }

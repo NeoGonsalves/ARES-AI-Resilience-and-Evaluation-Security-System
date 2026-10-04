@@ -101,7 +101,17 @@ public sealed class MockAresApiClient : IAresApiClient
 
     public Task<StatsResponse> GetStatsAsync(CancellationToken cancellationToken)
     {
-        return Task.FromResult(new StatsResponse(98.6, 98.4, 0.2, 2145, new Dictionary<string, int>(), new List<CategoryAccuracy>(), "Mock Model", DateTimeOffset.UtcNow));
+        return Task.FromResult(new StatsResponse(100.0, 100.0, 0.0, 3695, new Dictionary<string, int> { ["context_smuggling"] = 1271, ["encoding_tricks"] = 812, ["role_play_hijack"] = 589, ["instruction_override"] = 558, ["delimiter_confusion"] = 465 }, new List<CategoryAccuracy>(), "LogisticRegression(C=5, balanced)", DateTimeOffset.UtcNow));
+    }
+
+    public Task<StatsResponse> RetrainStatsAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new StatsResponse(100.0, 100.0, 0.0, 3695, new Dictionary<string, int> { ["context_smuggling"] = 1271, ["encoding_tricks"] = 812, ["role_play_hijack"] = 589, ["instruction_override"] = 558, ["delimiter_confusion"] = 465 }, new List<CategoryAccuracy>(), "LogisticRegression(C=5, balanced) | Retrained", DateTimeOffset.UtcNow));
+    }
+
+    public Task<string> GetReportAsync(string testId, string format, CancellationToken cancellationToken)
+    {
+        return Task.FromResult($"# ARES Security Evaluation Audit Report\n\n**Audit ID:** `{testId}`\n**Status:** PASSED\n**Robustness Score:** 94.5%\n**Attack Success Rate:** 5.5%");
     }
 
     public Task<SearchResponse> SearchAsync(SearchRequest request, CancellationToken cancellationToken)

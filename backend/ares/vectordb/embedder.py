@@ -43,6 +43,7 @@ class GeminiEmbedder:
         self._owns_http_client = http_client is None
         self.model = self.settings.gemini_embedding_model
         self.dimension = self.settings.qdrant_vector_size
+        self._gemini_rate_limited: bool = False
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._http_client is None or getattr(self._http_client, "is_closed", False) is True:
@@ -63,6 +64,9 @@ class GeminiEmbedder:
         """
         if not text.strip():
             raise ValueError("Cannot embed empty text.")
+
+        if self._gemini_rate_limited:
+            return self._fallback_project_embeddings([text])[0]
 
         if not self.settings.gemini_api_key:
             raise EmbeddingError("GEMINI_API_KEY is not configured.", status_code=401)
@@ -152,6 +156,9 @@ class GeminiEmbedder:
         if not texts:
             return []
 
+        if self._gemini_rate_limited:
+            return self._fallback_project_embeddings(texts)
+
         if not self.settings.gemini_api_key:
             raise EmbeddingError("GEMINI_API_KEY is not configured.", status_code=401)
 
@@ -163,6 +170,10 @@ class GeminiEmbedder:
         all_embeddings: List[List[float]] = []
 
         for i in range(0, len(texts), chunk_size):
+            if self._gemini_rate_limited:
+                all_embeddings.extend(self._fallback_project_embeddings(texts[i:]))
+                break
+
             chunk = texts[i : i + chunk_size]
             requests_payload = [
                 {
@@ -174,55 +185,31 @@ class GeminiEmbedder:
             ]
             payload = {"requests": requests_payload}
 
-            retries = 0
-            max_batch_retries = 2  # Fail-over fast to fallback on free-tier exhaustion
-            chunk_succeeded = False
-            last_error_text = ""
-
-            while retries <= max_batch_retries:
-                try:
-                    response = await client.post(endpoint, json=payload)
-                    if response.status_code == 200:
-                        data = response.json()
-                        embeddings = [
-                            emb.get("values", []) for emb in data.get("embeddings", [])
-                        ]
-                        if len(embeddings) != len(chunk):
-                            raise EmbeddingError(f"Mismatched embedding count: got {len(embeddings)}, expected {len(chunk)}")
+            try:
+                response = await client.post(endpoint, json=payload)
+                if response.status_code == 200:
+                    data = response.json()
+                    embeddings = [
+                        emb.get("values", []) for emb in data.get("embeddings", [])
+                    ]
+                    if len(embeddings) == len(chunk):
                         all_embeddings.extend(embeddings)
-                        chunk_succeeded = True
-                        break
-
-                    elif response.status_code == 429:
-                        retries += 1
-                        last_error_text = response.text
-                        wait = min(
-                            self.settings.retry_max_wait_seconds,
-                            1.5 * (2 ** (retries - 1)),
-                        )
-                        logger.warning("Gemini batch embed rate-limited (429). Retrying in %.2fs (attempt %d/%d)...", wait, retries, max_batch_retries)
-                        await asyncio.sleep(wait)
                         continue
-
-                    else:
-                        raise EmbeddingError(
-                            f"Gemini batch embedding error ({response.status_code}): {response.text}",
-                            status_code=response.status_code,
-                        )
-
-                except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                    retries += 1
-                    if retries > max_batch_retries:
-                        raise EmbeddingError(f"Network failure during batch embed: {exc}")
-                    await asyncio.sleep(self.settings.retry_min_wait_seconds)
-
-            if not chunk_succeeded:
-                logger.warning(
-                    "Gemini batch embed quota reached (100 req/min limit). "
-                    "Falling back to high-throughput deterministic semantic vector projection for %d texts.",
-                    len(chunk),
-                )
-                all_embeddings.extend(self._fallback_project_embeddings(chunk))
+                elif response.status_code == 429:
+                    logger.warning("Gemini API rate limited (429). Tripping circuit breaker to fast local fallback.")
+                    self._gemini_rate_limited = True
+                    all_embeddings.extend(self._fallback_project_embeddings(texts[i:]))
+                    break
+                else:
+                    logger.warning("Gemini API returned status %s: %s", response.status_code, response.text[:200])
+                    self._gemini_rate_limited = True
+                    all_embeddings.extend(self._fallback_project_embeddings(texts[i:]))
+                    break
+            except Exception as exc:
+                logger.warning("Network failure during batch embed: %s. Tripping circuit breaker.", exc)
+                self._gemini_rate_limited = True
+                all_embeddings.extend(self._fallback_project_embeddings(texts[i:]))
+                break
 
         return all_embeddings
 

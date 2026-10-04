@@ -47,17 +47,29 @@ class QdrantStore:
         if client is not None:
             self._client = client
         else:
-            if not self.settings.qdrant_url:
-                raise QdrantStoreError("QDRANT_URL is not configured in settings.")
-            self._client = QdrantClient(
-                url=self.settings.qdrant_url,
-                api_key=self.settings.qdrant_api_key or None,
-                timeout=self.settings.request_timeout_seconds,
-            )
+            url = self.settings.qdrant_url
+            if not url or url == ":memory:" or url.startswith("path:"):
+                storage_path = url.replace("path:", "") if url and url.startswith("path:") else "./qdrant_data"
+                if url == ":memory:":
+                    self._client = QdrantClient(":memory:")
+                else:
+                    self._client = QdrantClient(path=storage_path)
+            else:
+                try:
+                    self._client = QdrantClient(
+                        url=self.settings.qdrant_url,
+                        api_key=self.settings.qdrant_api_key or None,
+                        timeout=min(self.settings.request_timeout_seconds, 5.0),
+                    )
+                    self._client.get_collections()
+                except Exception as exc:
+                    logger.warning("Remote Qdrant connection failed (%s); switching to local persistent vector store at ./qdrant_data", exc)
+                    self._client = QdrantClient(path="./qdrant_data")
 
     @property
     def client(self) -> QdrantClient:
         return self._client
+
 
     def ensure_collection(self, collection_name: Optional[str] = None) -> bool:
         """
