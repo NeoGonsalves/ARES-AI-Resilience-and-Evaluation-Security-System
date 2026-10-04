@@ -10,13 +10,16 @@ import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+import logging
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Response
 
 from ares.evaluation.report_generator import SecurityAuditReportGenerator
+from ares.mappings import to_backend_category, to_frontend_category
 from ares.api.schemas import (
     AiProviderEnum,
+    ArenaTestConfig,
     AttackCategoryEnum,
     CancelTestResponse,
     CreateTestRequest,
@@ -36,6 +39,8 @@ from ares.config import settings
 from ares.evaluation.evaluator import PromptRobustnessEvaluator
 from ares.redteam.payloads import AttackCategory
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/tests", tags=["tests"])
 
 _REPORTS_DIR = Path(__file__).parent.parent.parent.parent
@@ -45,20 +50,8 @@ _test_store: Dict[str, TestRunResponse] = {}
 _pending_configs: Dict[str, CreateTestRequest] = {}
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers & Persistence
 # ---------------------------------------------------------------------------
-
-# Map C# AttackCategoryEnum → Python AttackCategory
-_CATEGORY_MAP: Dict[AttackCategoryEnum, AttackCategory] = {
-    AttackCategoryEnum.direct_prompt_injection:   AttackCategory.INSTRUCTION_OVERRIDE,
-    AttackCategoryEnum.indirect_prompt_injection: AttackCategory.CONTEXT_SMUGGLING,
-    AttackCategoryEnum.system_prompt_extraction:  AttackCategory.INSTRUCTION_OVERRIDE,
-    AttackCategoryEnum.data_exfiltration:         AttackCategory.CONTEXT_SMUGGLING,
-    AttackCategoryEnum.policy_bypass:             AttackCategory.INSTRUCTION_OVERRIDE,
-    AttackCategoryEnum.role_manipulation:         AttackCategory.ROLE_PLAY_HIJACK,
-    AttackCategoryEnum.tool_misuse:               AttackCategory.DELIMITER_CONFUSION,
-    AttackCategoryEnum.encoding_or_obfuscation:   AttackCategory.ENCODING_TRICKS,
-}
 
 _PROVIDER_MAP: Dict[AiProviderEnum, str] = {
     AiProviderEnum.groq:       "groq",
@@ -66,6 +59,261 @@ _PROVIDER_MAP: Dict[AiProviderEnum, str] = {
     AiProviderEnum.nvidia_nim: "nvidia",
     AiProviderEnum.openai:     "groq",   # fallback
 }
+
+
+def _persist_test_run(run: TestRunResponse) -> None:
+    """Persist completed test run and findings into SQLite/Postgres database."""
+    try:
+        import hashlib
+        from sqlalchemy.orm import Session
+        from app.database import engine
+        from app.models import (
+            Evidence as DbEvidence,
+            Finding as DbFinding,
+            Organization,
+            Project,
+            Severity as DbSeverity,
+            TestRun as DbTestRun,
+            TestRunStatus as DbTestRunStatus,
+            User,
+        )
+
+        with Session(bind=engine) as db:
+            org = db.query(Organization).filter_by(name="Local development").first()
+            if not org:
+                org = Organization(name="Local development")
+                db.add(org)
+                db.flush()
+
+            user = db.query(User).filter_by(email="developer@local").first()
+            if not user:
+                user = User(organization_id=org.id, email="developer@local", display_name="Developer")
+                db.add(user)
+                db.flush()
+
+            proj = db.query(Project).filter_by(name="Default project").first()
+            if not proj:
+                proj = Project(organization_id=org.id, created_by_user_id=user.id, name="Default project")
+                db.add(proj)
+                db.flush()
+
+            prompt_hash = hashlib.sha256(run.configuration.system_prompt.encode()).hexdigest()[:64]
+            status_map = {
+                TestRunStatusEnum.completed: DbTestRunStatus.completed,
+                TestRunStatusEnum.failed: DbTestRunStatus.failed,
+                TestRunStatusEnum.running: DbTestRunStatus.running,
+                TestRunStatusEnum.queued: DbTestRunStatus.queued,
+                TestRunStatusEnum.cancelled: DbTestRunStatus.cancelled,
+            }
+            db_status = status_map.get(run.status, DbTestRunStatus.completed)
+
+            db_run = db.query(DbTestRun).filter_by(id=run.id).first()
+            if not db_run:
+                db_run = DbTestRun(
+                    id=run.id,
+                    organization_id=org.id,
+                    project_id=proj.id,
+                    requested_by_user_id=user.id,
+                    status=db_status,
+                    configuration=run.configuration.model_dump(),
+                    prompt_fingerprint=prompt_hash,
+                    correlation_id=run.correlation_id or "ares-corr",
+                    created_at=run.created_at,
+                    completed_at=run.completed_at,
+                    duration_milliseconds=run.duration_ms,
+                    token_estimate=run.token_estimate,
+                    failure_reason=run.failure_reason,
+                )
+                db.add(db_run)
+                db.flush()
+
+            if run.analysis:
+                primary_cat = run.configuration.attack_categories[0].value if run.configuration.attack_categories else "direct_prompt_injection"
+                sev_map = {
+                    SeverityEnum.critical: DbSeverity.critical,
+                    SeverityEnum.high: DbSeverity.high,
+                    SeverityEnum.medium: DbSeverity.medium,
+                    SeverityEnum.low: DbSeverity.low,
+                    SeverityEnum.safe: DbSeverity.safe,
+                }
+                db_finding = DbFinding(
+                    test_run_id=run.id,
+                    category=primary_cat,
+                    severity=sev_map.get(run.analysis.severity, DbSeverity.medium),
+                    risk_score=run.analysis.risk_score,
+                    attack_succeeded=run.analysis.attack_succeeded,
+                    runtime_classification=run.analysis.runtime_classification,
+                    safe_summary=f"Evaluated with risk score {run.analysis.risk_score}%",
+                )
+                db.add(db_finding)
+
+                for ev in run.analysis.evidence:
+                    db.add(DbEvidence(
+                        test_run_id=run.id,
+                        source=ev.source,
+                        category=ev.category.value if hasattr(ev.category, "value") else str(ev.category),
+                        summary=ev.summary,
+                        similarity=ev.similarity,
+                        redacted=True,
+                    ))
+
+            db.commit()
+    except Exception as exc:
+        logger.warning("Could not persist test run to database: %s", exc)
+
+
+def _load_test_run_from_db(test_id: str) -> Optional[TestRunResponse]:
+    """Reconstruct a TestRunResponse from the database."""
+    try:
+        from sqlalchemy.orm import Session
+        from app.database import engine
+        from app.models import (
+            Severity as DbSeverity,
+            TestRun as DbTestRun,
+            TestRunStatus as DbTestRunStatus,
+        )
+
+        with Session(bind=engine) as db:
+            db_run = db.query(DbTestRun).filter_by(id=test_id).first()
+            if not db_run:
+                return None
+
+            raw_cfg = db_run.configuration or {}
+            cfg = ArenaTestConfig(**raw_cfg) if raw_cfg else ArenaTestConfig(
+                name="Imported Test",
+                target_application="Application",
+                system_prompt="",
+                provider=AiProviderEnum.groq,
+                model="llama-3.3-70b-versatile",
+                attack_categories=[AttackCategoryEnum.direct_prompt_injection],
+                variation_count=1,
+            )
+
+            status_rev = {
+                DbTestRunStatus.completed: TestRunStatusEnum.completed,
+                DbTestRunStatus.failed: TestRunStatusEnum.failed,
+                DbTestRunStatus.running: TestRunStatusEnum.running,
+                DbTestRunStatus.queued: TestRunStatusEnum.queued,
+                DbTestRunStatus.cancelled: TestRunStatusEnum.cancelled,
+            }
+            status = status_rev.get(db_run.status, TestRunStatusEnum.completed)
+
+            analysis: Optional[SecurityClassification] = None
+            if db_run.findings:
+                finding = db_run.findings[0]
+                sev_rev = {
+                    DbSeverity.critical: SeverityEnum.critical,
+                    DbSeverity.high: SeverityEnum.high,
+                    DbSeverity.medium: SeverityEnum.medium,
+                    DbSeverity.low: SeverityEnum.low,
+                    DbSeverity.safe: SeverityEnum.safe,
+                }
+                sev = sev_rev.get(finding.severity, SeverityEnum.medium)
+
+                evidence_items: List[EvidenceItem] = []
+                for ev in db_run.evidence:
+                    try:
+                        fe_cat = AttackCategoryEnum(ev.category)
+                    except Exception:
+                        fe_cat = AttackCategoryEnum.direct_prompt_injection
+
+                    evidence_items.append(EvidenceItem(
+                        id=ev.id,
+                        source=ev.source,
+                        summary=ev.summary,
+                        similarity=ev.similarity or 85,
+                        category=fe_cat,
+                        retrieved_at=ev.created_at,
+                    ))
+
+                detections = [
+                    DetectionResult(
+                        rule_id="DB-RULE-001",
+                        name="Prompt Injection Evaluation",
+                        severity=sev,
+                        explanation=finding.safe_summary or f"Risk score: {finding.risk_score}%",
+                        triggered=finding.attack_succeeded,
+                    )
+                ]
+
+                analysis = SecurityClassification(
+                    risk_score=finding.risk_score,
+                    severity=sev,
+                    attack_succeeded=finding.attack_succeeded,
+                    runtime_classification=finding.runtime_classification or ("HIGH RISK" if finding.attack_succeeded else "SECURE"),
+                    detections=detections,
+                    evidence=evidence_items,
+                    hardening=None,
+                    comparison=None,
+                )
+
+            return TestRunResponse(
+                id=db_run.id,
+                configuration=cfg,
+                status=status,
+                created_at=db_run.created_at,
+                completed_at=db_run.completed_at or db_run.created_at,
+                duration_ms=db_run.duration_milliseconds or 0,
+                token_estimate=db_run.token_estimate or 0,
+                analysis=analysis,
+                log=[],
+                correlation_id=db_run.correlation_id,
+                failure_reason=db_run.failure_reason,
+            )
+    except Exception as exc:
+        logger.warning("Could not load test run %s from db: %s", test_id, exc)
+        return None
+
+
+def _load_recent_test_runs_from_db(limit: int = 20) -> List[RecentTestItem]:
+    """Retrieve recent test runs from the persistent database."""
+    items: List[RecentTestItem] = []
+    try:
+        from sqlalchemy.orm import Session
+        from app.database import engine
+        from app.models import TestRun as DbTestRun, TestRunStatus as DbTestRunStatus
+
+        with Session(bind=engine) as db:
+            db_runs = db.query(DbTestRun).order_by(DbTestRun.created_at.desc()).limit(limit).all()
+            for r in db_runs:
+                cfg = r.configuration or {}
+                cats = cfg.get("attack_categories", [])
+                primary_cat_val = cats[0] if cats else "direct_prompt_injection"
+                try:
+                    fe_cat = AttackCategoryEnum(primary_cat_val)
+                except Exception:
+                    fe_cat = AttackCategoryEnum.direct_prompt_injection
+
+                prov_val = cfg.get("provider", "groq")
+                try:
+                    prov = AiProviderEnum(prov_val)
+                except Exception:
+                    prov = AiProviderEnum.groq
+
+                status_rev = {
+                    DbTestRunStatus.completed: TestRunStatusEnum.completed,
+                    DbTestRunStatus.failed: TestRunStatusEnum.failed,
+                    DbTestRunStatus.running: TestRunStatusEnum.running,
+                    DbTestRunStatus.queued: TestRunStatusEnum.queued,
+                    DbTestRunStatus.cancelled: TestRunStatusEnum.cancelled,
+                }
+                status = status_rev.get(r.status, TestRunStatusEnum.completed)
+                risk_score = 0
+                if r.findings:
+                    risk_score = r.findings[0].risk_score
+
+                items.append(RecentTestItem(
+                    id=r.id,
+                    timestamp=r.created_at,
+                    category=fe_cat,
+                    provider=prov,
+                    model=cfg.get("model", "llama-3.3-70b-versatile"),
+                    risk_score=risk_score,
+                    status=status,
+                ))
+    except Exception as exc:
+        logger.warning("Could not load recent runs from DB: %s", exc)
+    return items
 
 
 def _now() -> datetime:
@@ -103,7 +351,7 @@ async def create_and_run_test(request: CreateTestRequest) -> TestRunResponse:
 
     try:
         # Map categories
-        py_categories = list({_CATEGORY_MAP[c] for c in cfg.attack_categories})
+        py_categories = list({to_backend_category(c) for c in cfg.attack_categories})
 
         evaluator = PromptRobustnessEvaluator(settings=settings)
         report = await asyncio.to_thread(
@@ -196,28 +444,38 @@ async def create_and_run_test(request: CreateTestRequest) -> TestRunResponse:
         )
 
     _test_store[test_id] = run
+    _persist_test_run(run)
     return run
 
 
 @router.get("/recent", response_model=List[RecentTestItem])
 async def get_recent_tests() -> List[RecentTestItem]:
-    """Return recent test runs from in-memory store + saved reports."""
+    """Return recent test runs from database, in-memory store, and saved reports."""
+    seen_ids = set()
     items: List[RecentTestItem] = []
 
-    # From in-memory store (most recent first)
-    for run in reversed(list(_test_store.values())):
-        cat = run.configuration.attack_categories[0] if run.configuration.attack_categories else AttackCategoryEnum.role_manipulation
-        items.append(RecentTestItem(
-            id=run.id,
-            timestamp=run.created_at,
-            category=cat,
-            provider=run.configuration.provider,
-            model=run.configuration.model,
-            risk_score=run.analysis.risk_score if run.analysis else 0,
-            status=run.status,
-        ))
+    # 1. From persistent database
+    db_items = _load_recent_test_runs_from_db(20)
+    for it in db_items:
+        seen_ids.add(it.id)
+        items.append(it)
 
-    # Pad with saved report entries if store is empty
+    # 2. From in-memory store (most recent first)
+    for run in reversed(list(_test_store.values())):
+        if run.id not in seen_ids:
+            seen_ids.add(run.id)
+            cat = run.configuration.attack_categories[0] if run.configuration.attack_categories else AttackCategoryEnum.role_manipulation
+            items.append(RecentTestItem(
+                id=run.id,
+                timestamp=run.created_at,
+                category=cat,
+                provider=run.configuration.provider,
+                model=run.configuration.model,
+                risk_score=run.analysis.risk_score if run.analysis else 0,
+                status=run.status,
+            ))
+
+    # 3. Pad with saved report entries if still empty
     if not items:
         nemotron_path = _REPORTS_DIR / "nemotron_robustness_report.json"
         if nemotron_path.exists():
@@ -244,9 +502,15 @@ async def get_recent_tests() -> List[RecentTestItem]:
 @router.get("/{test_id}", response_model=TestRunResponse)
 async def get_test(test_id: str) -> TestRunResponse:
     """Fetch a specific test run by ID."""
-    if test_id not in _test_store:
-        raise HTTPException(status_code=404, detail=f"Test '{test_id}' not found.")
-    return _test_store[test_id]
+    if test_id in _test_store:
+        return _test_store[test_id]
+
+    db_run = _load_test_run_from_db(test_id)
+    if db_run:
+        _test_store[test_id] = db_run
+        return db_run
+
+    raise HTTPException(status_code=404, detail=f"Test '{test_id}' not found.")
 
 
 @router.post("/{test_id}/cancel", response_model=CancelTestResponse)
@@ -270,11 +534,17 @@ async def get_test_report(test_id: str, format: str = "markdown"):
 
     if test_id in _test_store:
         data = _test_store[test_id]
-    elif test_id.startswith("nemotron") or test_id == "latest":
+    else:
+        db_run = _load_test_run_from_db(test_id)
+        if db_run:
+            _test_store[test_id] = db_run
+            data = db_run
+
+    if not data and (test_id.startswith("nemotron") or test_id == "latest"):
         report_file = _REPORTS_DIR / "nemotron_robustness_report.json"
         if report_file.exists():
             data = json.loads(report_file.read_text(encoding="utf-8"))
-    elif test_id.startswith("baseline"):
+    elif not data and test_id.startswith("baseline"):
         report_file = _REPORTS_DIR / "baseline_robustness_report.json"
         if report_file.exists():
             data = json.loads(report_file.read_text(encoding="utf-8"))

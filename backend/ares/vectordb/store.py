@@ -133,6 +133,9 @@ class QdrantStore:
         payload = {
             "attack_text": attempt.attack_text,
             "category": attempt.category,
+            "source": getattr(attempt, "source", "redteam_probe"),
+            "severity": getattr(attempt, "severity", "high" if attempt.success else "safe"),
+            "tags": getattr(attempt, "tags", ["dynamic_attack", attempt.category]),
             "success": attempt.success,
             "rule_verdict": attempt.rule_verdict,
             "llm_verdict": attempt.llm_verdict,

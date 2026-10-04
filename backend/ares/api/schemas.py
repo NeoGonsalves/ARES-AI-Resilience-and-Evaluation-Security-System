@@ -7,7 +7,7 @@ records in the Blazor frontend so JSON deserialization works without mapping.
 
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
@@ -123,7 +123,7 @@ class EvidenceItem(BaseModel):
     summary:      str
     similarity:   float
     category:     str
-    retrieved_at: datetime
+    retrieved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class HardeningResult(BaseModel):
@@ -259,7 +259,10 @@ class ModelConfigResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class CorpusSaveRequest(BaseModel):
-    test_id:      str
+    test_id:      Optional[str] = None
+    attack_text:  Optional[str] = None
+    category:     Optional[str] = None
+    severity:     Optional[str] = None
     analyst_note: Optional[str] = None
 
 
