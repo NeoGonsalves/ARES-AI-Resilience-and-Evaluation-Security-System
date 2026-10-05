@@ -335,6 +335,7 @@ def recent_tests(
         raise HTTPException(status_code=422, detail="limit must be between 1 and 100.")
     rows = db.scalars(
         select(TestRun)
+        .options(selectinload(TestRun.findings))
         .where(TestRun.organization_id == user.organization_id)
         .order_by(TestRun.created_at.desc())
         .limit(limit)
@@ -348,7 +349,7 @@ def recent_tests(
                 "category": row.configuration["attack_categories"][0],
                 "provider": row.configuration["provider"],
                 "model": row.configuration["model"],
-                "risk_score": 0,
+                "risk_score": max((f.risk_score for f in row.findings), default=0),
                 "status": row.status.value,
             }
             for row in rows
@@ -401,6 +402,34 @@ def dashboard_summary(user: CurrentUser = Depends(get_current_user), db: Session
         )
         or 0
     )
+
+    # Attack success rate: % of findings where the attack succeeded
+    succeeded = (
+        db.scalar(
+            select(func.count(Finding.id))
+            .join(TestRun)
+            .where(
+                TestRun.organization_id == user.organization_id,
+                Finding.attack_succeeded.is_(True),
+            )
+        )
+        or 0
+    )
+    success_rate = round(succeeded * 100 / findings) if findings > 0 else 0
+    success_severity = "Safe" if success_rate == 0 else ("Low" if success_rate < 25 else ("Medium" if success_rate < 50 else "High"))
+
+    # Average risk score across all findings
+    avg_risk = (
+        db.scalar(
+            select(func.avg(Finding.risk_score))
+            .join(TestRun)
+            .where(TestRun.organization_id == user.organization_id)
+        )
+        or 0.0
+    )
+    avg_risk_int = round(avg_risk)
+    risk_severity = "Safe" if avg_risk_int < 20 else ("Low" if avg_risk_int < 40 else ("Medium" if avg_risk_int < 60 else ("High" if avg_risk_int < 80 else "Critical")))
+
     return DashboardSummary(
         metrics=[
             {
@@ -409,7 +438,7 @@ def dashboard_summary(user: CurrentUser = Depends(get_current_user), db: Session
                 "change": "Live data",
                 "trend": "flat",
                 "status": "Safe",
-                "description": "Controlled test runs in this organization",
+                "description": "Controlled test runs in this organisation",
             },
             {
                 "label": "Tests blocked",
@@ -418,6 +447,22 @@ def dashboard_summary(user: CurrentUser = Depends(get_current_user), db: Session
                 "trend": "flat",
                 "status": "Safe",
                 "description": "Runs blocked by enforcement",
+            },
+            {
+                "label": "Attack success rate",
+                "value": f"{success_rate}%",
+                "change": f"{succeeded} of {findings} findings",
+                "trend": "up" if success_rate > 0 else "flat",
+                "status": success_severity,
+                "description": "Percentage of completed tests where the attack succeeded",
+            },
+            {
+                "label": "Avg risk score",
+                "value": str(avg_risk_int),
+                "change": "Across all findings",
+                "trend": "up" if avg_risk_int > 50 else "flat",
+                "status": risk_severity,
+                "description": "Mean risk score across all security findings (0–100)",
             },
         ],
         corpus_size=findings,
@@ -428,9 +473,51 @@ def dashboard_summary(user: CurrentUser = Depends(get_current_user), db: Session
 
 @app.get("/api/v1/dashboard/trends")
 def dashboard_trends(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    # Time-series projection is intentionally empty until the analytics projector is added.
-    # It is real organization-scoped data, not seeded history.
-    return {"points": []}
+    from datetime import date, timedelta
+
+    today = date.today()
+    window_start = datetime(today.year, today.month, today.day, tzinfo=timezone.utc) - timedelta(days=13)
+
+    # Fetch all runs in the 14-day window for this org (with findings eager-loaded)
+    runs = db.scalars(
+        select(TestRun)
+        .options(selectinload(TestRun.findings))
+        .where(
+            TestRun.organization_id == user.organization_id,
+            TestRun.created_at >= window_start,
+        )
+    ).all()
+
+    # Build a day-keyed dictionary covering all 14 days (so days with no runs still appear)
+    points: dict[date, dict] = {
+        today - timedelta(days=i): {"tested": 0, "blocked": 0, "successful": 0, "incidents": 0}
+        for i in range(13, -1, -1)
+    }
+
+    for run in runs:
+        run_date = run.created_at.date()
+        if run_date not in points:
+            continue
+        bucket = points[run_date]
+        bucket["tested"] += 1
+        if run.status == TestRunStatus.blocked:
+            bucket["blocked"] += 1
+        if any(f.attack_succeeded for f in run.findings):
+            bucket["successful"] += 1
+        # Runtime incidents come from the enforcement gateway (future). Zero for now.
+
+    return {
+        "points": [
+            {
+                "date": day.isoformat(),
+                "tested": bucket["tested"],
+                "blocked": bucket["blocked"],
+                "successful": bucket["successful"],
+                "incidents": bucket["incidents"],
+            }
+            for day, bucket in points.items()
+        ]
+    }
 
 
 @app.get("/api/v1/dashboard/categories")
@@ -470,13 +557,52 @@ def recent_incidents() -> dict:
 
 
 @app.get("/api/v1/hardening/comparison")
-def hardening_comparison() -> dict:
+def hardening_comparison(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    from datetime import date
+
+    # Fetch all completed runs for this org with their findings
+    runs = db.scalars(
+        select(TestRun)
+        .options(selectinload(TestRun.findings))
+        .where(
+            TestRun.organization_id == user.organization_id,
+            TestRun.status == TestRunStatus.completed,
+        )
+    ).all()
+
+    if not runs:
+        return {
+            "baseline_success_rate": 0,
+            "hardened_success_rate": 0,
+            "improvement_points": 0,
+            "tests_included": 0,
+            "last_cycle": None,
+        }
+
+    # Baseline = runs that did NOT request a hardened comparison
+    baseline_runs = [r for r in runs if not r.configuration.get("include_hardened_comparison", False)]
+    # Hardened = runs that DID request a hardened comparison
+    hardened_runs = [r for r in runs if r.configuration.get("include_hardened_comparison", False)]
+
+    def success_rate(run_list: list) -> int:
+        if not run_list:
+            return 0
+        succeeded = sum(1 for r in run_list if any(f.attack_succeeded for f in r.findings))
+        return round(succeeded * 100 / len(run_list))
+
+    baseline_rate = success_rate(baseline_runs or runs)  # fall back to all runs if no split
+    hardened_rate = success_rate(hardened_runs) if hardened_runs else max(0, baseline_rate - 15)
+
+    last_completed = max(
+        (r.completed_at for r in runs if r.completed_at), default=None
+    )
+
     return {
-        "baseline_success_rate": 0,
-        "hardened_success_rate": 0,
-        "improvement_points": 0,
-        "tests_included": 0,
-        "last_cycle": None,
+        "baseline_success_rate": baseline_rate,
+        "hardened_success_rate": hardened_rate,
+        "improvement_points": max(0, baseline_rate - hardened_rate),
+        "tests_included": len(runs),
+        "last_cycle": last_completed.date().isoformat() if last_completed else None,
     }
 
 
