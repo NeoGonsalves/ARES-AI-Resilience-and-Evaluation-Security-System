@@ -40,15 +40,47 @@ else if (_summary is not null)
                 <button type="button" data-state="breached" class="@(_posture == "breached" ? "active" : "")" aria-pressed="@(_posture == "breached")" @onclick='() => SetPosture("breached")'>Breached</button>
             </div>
         </div>
-        <div class="stage-note">move your pointer to turn the pedestal</div>
+        <div class="stage-readout" id="component-readout" role="status" aria-live="polite">
+            <span class="readout-pulse"></span><span id="component-name">ARES NETWORK</span><span id="component-health">ALL SYSTEMS NOMINAL</span>
+        </div>
+        <div class="stage-note">drag to orbit · select a node to inspect</div>
     </section>
 
     <div class="meander" aria-hidden="true"></div>
 
-    <!-- KPI Tablets -->
-    <div class="sect-head">
-        <h2>Current security posture</h2>
-        <p>Comparisons use the preceding 14-day period.</p>
+    <section class="ops-console" aria-label="Security operations quick actions">
+        <div class="ops-console-head">
+            <div>
+                <p class="eyebrow">Operations / live workspace</p>
+                <h2>Move from signal to action</h2>
+            </div>
+            <div class="workspace-health"><span class="readout-pulse"></span><span>API connected</span><small>@_summary.ProtectedApplications protected app@( _summary.ProtectedApplications == 1 ? "" : "s") · @_summary.CorpusSize attack vectors</small></div>
+        </div>
+        <div class="ops-console-grid">
+            <article class="next-action">
+                <div class="next-action-top"><span class="action-kicker">Suggested next move</span><span class="action-index">ARES / 01</span></div>
+                <h3>@RecommendedActionTitle</h3>
+                <p>@RecommendedActionDescription</p>
+                <a class="action-link" href="@RecommendedActionHref">@RecommendedActionLabel <span aria-hidden="true">↗</span></a>
+            </article>
+            <a class="launch-card launch-primary" href="/arena/challenges?track=Attacker">
+                <span class="launch-icon" aria-hidden="true">↗</span><span class="launch-kicker">01 / validate</span>
+                <strong>Run an attack exercise</strong><span>Challenge a prompt in ARES Arena.</span><span class="launch-arrow">Open attacker track →</span>
+            </a>
+            <a class="launch-card" href="/runtime-incidents">
+                <span class="launch-icon" aria-hidden="true">◉</span><span class="launch-kicker">02 / investigate</span>
+                <strong>Review incidents</strong><span>@(_incidents.Count == 0 ? "No active incidents. Inspect the event stream." : $"{_incidents.Count} incident{(_incidents.Count == 1 ? "" : "s")} need review.")</span><span class="launch-arrow">Open incident queue →</span>
+            </a>
+            <a class="launch-card" href="/attack-corpus">
+                <span class="launch-icon" aria-hidden="true">⌘</span><span class="launch-kicker">03 / explore</span>
+                <strong>Explore attack patterns</strong><span>Search the knowledge base and adversarial corpus.</span><span class="launch-arrow">Open attack corpus →</span>
+            </a>
+        </div>
+    </section>
+
+    <div class="sect-head dashboard-section-head">
+        <div><p class="eyebrow">Signal overview</p><h2>Security posture</h2></div>
+        <p>Live measurements · updated @_summary.GeneratedAt.ToLocalTime().ToString("HH:mm")</p>
     </div>
 
     <section class="kpis" aria-label="Key metrics">
@@ -64,7 +96,7 @@ else if (_summary is not null)
                 Severity.Critical => "pill-critical",
                 _ => "pill-safe"
             };
-            <article class="tablet">
+            <a class="tablet" href="@MetricHref(metric.Label)" aria-label="@metric.Label: @metric.Value. Open related workspace">
                 <header>
                     <span>@metric.Label</span>
                     <span class="pill @pillClass">@metric.Status.ToString().ToUpperInvariant()</span>
@@ -72,30 +104,37 @@ else if (_summary is not null)
                 <div class="num">@metric.Value</div>
                 <div class="delta">@metric.Change</div>
                 <div class="hint">@metric.Description</div>
-            </article>
+                <span class="tablet-link">Open details <span aria-hidden="true">↗</span></span>
+            </a>
         }
     </section>
 
     <!-- Trends and Categories -->
     <section class="grid2">
-        <div class="panel">
-            <p class="eyebrow" style="margin:0">Security trend / 14 days</p>
-            <h3>Tests and enforcement outcomes</h3>
-            <div class="legend" aria-hidden="true">
-                <span><i style="background:var(--bronze)"></i>Attacks tested</span>
-                <span><i style="background:var(--laurel)"></i>Attacks blocked</span>
-                <span><i style="background:var(--crimson)"></i>Successful attacks</span>
-                <span><i style="background:var(--marble-dim)"></i>Runtime incidents</span>
+        <div class="panel trend-panel">
+            <div class="panel-heading-row">
+                <div><p class="eyebrow" style="margin:0">Telemetry / rolling window</p><h3>Test and enforcement activity</h3></div>
+                <div class="seg chart-range" role="group" aria-label="Chart time range">
+                    <button type="button" class="@(_trendWindowDays == 7 ? "active" : "")" aria-pressed="@(_trendWindowDays == 7)" @onclick="() => SetTrendWindow(7)">7 days</button>
+                    <button type="button" class="@(_trendWindowDays == 14 ? "active" : "")" aria-pressed="@(_trendWindowDays == 14)" @onclick="() => SetTrendWindow(14)">14 days</button>
+                </div>
             </div>
-            <canvas id="trend" role="img" aria-label="Line chart of attacks tested, blocked, successful and runtime incidents over 14 days."></canvas>
+            <div class="legend trend-toggles" role="group" aria-label="Toggle chart series">
+                <button type="button" class="@LegendClass("tested")" aria-pressed="@_visibleTrendSeries.Contains("tested")" @onclick='() => ToggleTrendSeries("tested")'><i style="background:var(--bronze)"></i>Attacks tested</button>
+                <button type="button" class="@LegendClass("blocked")" aria-pressed="@_visibleTrendSeries.Contains("blocked")" @onclick='() => ToggleTrendSeries("blocked")'><i style="background:var(--laurel)"></i>Attacks blocked</button>
+                <button type="button" class="@LegendClass("successful")" aria-pressed="@_visibleTrendSeries.Contains("successful")" @onclick='() => ToggleTrendSeries("successful")'><i style="background:var(--crimson)"></i>Successful attacks</button>
+                <button type="button" class="@LegendClass("incidents")" aria-pressed="@_visibleTrendSeries.Contains("incidents")" @onclick='() => ToggleTrendSeries("incidents")'><i style="background:var(--marble-dim)"></i>Runtime incidents</button>
+            </div>
+            <canvas id="trend" role="img" aria-label="Interactive chart. Toggle a series or move over the chart to inspect daily test, enforcement, and incident counts."></canvas>
+            <p class="chart-readout" id="trend-readout" aria-live="polite">Hover over the chart to inspect a day.</p>
             <p class="empty-note">
                 @if (_trends.Count > 0)
                 {
-                    <span>Live 14-day security series from @(_trends.First().Date.ToString("dd MMM")) to @(_trends.Last().Date.ToString("dd MMM")).</span>
+                    <span>Showing the latest @Math.Min(_trendWindowDays, _trends.Count) days, from @(_trends.TakeLast(_trendWindowDays).First().Date.ToString("dd MMM")) to @(_trends.Last().Date.ToString("dd MMM")).</span>
                 }
                 else
                 {
-                    <span>No test runs recorded in this 14-day window.</span>
+                    <span>No test runs recorded in this window. Start an exercise to create the first live signal.</span>
                 }
             </p>
         </div>
@@ -107,7 +146,7 @@ else if (_summary is not null)
                 @if (_categories.Count == 0)
                 {
                     <li>
-                        <span>Direct prompt injection</span>
+                            <span>Direct prompt injection</span>
                         <code>0 / 0 (0%)</code>
                         <div class="track"><i style="width: 0%"></i></div>
                     </li>
@@ -132,7 +171,7 @@ else if (_summary is not null)
                     @foreach (var category in _categories)
                     {
                         <li>
-                            <span>@category.Category.ToLabel()</span>
+                            <span>@category.Category.ToLabel()<a class="category-practice" href="/arena/challenges?category=@category.Category" aria-label="Practice @category.Category.ToLabel() in ARES Arena">Practice ↗</a></span>
                             <code>@category.Successful / @category.Tests (@category.SuccessRate%)</code>
                             <div class="track"><i style="width: @(category.SuccessRate)%"></i></div>
                         </li>
@@ -206,14 +245,40 @@ else if (_summary is not null)
     private IReadOnlyList<ProviderHealth> _providers = [];
     private HardeningComparison _hardening = new(0, 0, 0, 0, DateOnly.MinValue);
     private bool _loading = true;
+    private bool _sceneInitialized;
     private string? _error;
     private string _posture = "safe";
+    private int _trendWindowDays = 14;
+    private readonly HashSet<string> _visibleTrendSeries = new(StringComparer.Ordinal)
+        { "tested", "blocked", "successful", "incidents" };
+
+    private int ExecutedTestCount
+    {
+        get
+        {
+            var value = _summary?.Metrics.FirstOrDefault(m => m.Label.Contains("test", StringComparison.OrdinalIgnoreCase))?.Value;
+            return int.TryParse(value, out var count) ? count : 0;
+        }
+    }
+
+    private string RecommendedActionTitle => _incidents.Count > 0
+        ? "Investigate the latest incident"
+        : ExecutedTestCount == 0 ? "Run your first security exercise" : "Validate the latest changes";
+
+    private string RecommendedActionDescription => _incidents.Count > 0
+        ? $"There {( _incidents.Count == 1 ? "is" : "are") } {_incidents.Count} recent incident{(_incidents.Count == 1 ? "" : "s")}. Review the evidence and enforcement action."
+        : ExecutedTestCount == 0
+            ? "Start with a guided attacker challenge and record your first real assessment."
+            : $"ARES has recorded {ExecutedTestCount} controlled test{(ExecutedTestCount == 1 ? "" : "s")}. Run another exercise to validate a prompt or policy change.";
+
+    private string RecommendedActionHref => _incidents.Count > 0 ? "/runtime-incidents" : "/arena/challenges?track=Attacker";
+    private string RecommendedActionLabel => _incidents.Count > 0 ? "Investigate incidents" : ExecutedTestCount == 0 ? "Start first exercise" : "Launch a new exercise";
 
     private string FlavorText => _posture switch
     {
-        "elevated" => "The flame turns amber. Review recent findings.",
-        "breached" => "The flame runs red. Attacks are getting through.",
-        _ => "The flame burns green. Enforcement is holding."
+        "elevated" => "Elevated activity detected. Inspect the highlighted controls.",
+        "breached" => "Threat activity is breaching controls. Review affected systems.",
+        _ => "The control network is holding. All routes are protected."
     };
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -285,14 +350,24 @@ else if (_summary is not null)
         {
             try
             {
-                await JS.InvokeVoidAsync("AresTemple.init", "stage", "gl", _posture);
+                if (!_sceneInitialized)
+                {
+                    await JS.InvokeVoidAsync("AresControlSurface.init", "stage", "gl", _posture);
+                    _sceneInitialized = true;
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("AresControlSurface.setPosture", _posture);
+                }
+                var trendWindow = _trends.TakeLast(_trendWindowDays).ToList();
                 var trendData = new
                 {
-                    tested = _trends.Select(t => t.Tested).ToArray(),
-                    blocked = _trends.Select(t => t.Blocked).ToArray(),
-                    successful = _trends.Select(t => t.Successful).ToArray(),
-                    incidents = _trends.Select(t => t.Incidents).ToArray(),
-                    labels = _trends.Select(t => t.Date.ToString("dd MMM")).ToArray()
+                    tested = trendWindow.Select(t => t.Tested).ToArray(),
+                    blocked = trendWindow.Select(t => t.Blocked).ToArray(),
+                    successful = trendWindow.Select(t => t.Successful).ToArray(),
+                    incidents = trendWindow.Select(t => t.Incidents).ToArray(),
+                    labels = trendWindow.Select(t => t.Date.ToString("dd MMM")).ToArray(),
+                    visible = _visibleTrendSeries.ToArray()
                 };
                 await JS.InvokeVoidAsync("AresTemple.drawTrend", "trend", trendData);
                 await JS.InvokeVoidAsync("AresTemple.initTilt");
@@ -309,9 +384,30 @@ else if (_summary is not null)
         _posture = state;
         try
         {
-            await JS.InvokeVoidAsync("AresTemple.setPosture", state);
+            await JS.InvokeVoidAsync("AresControlSurface.setPosture", state);
         }
         catch { }
+    }
+
+    private string MetricHref(string label) => label.Contains("blocked", StringComparison.OrdinalIgnoreCase)
+        || label.Contains("success", StringComparison.OrdinalIgnoreCase)
+            ? "/runtime-incidents"
+            : label.Contains("risk", StringComparison.OrdinalIgnoreCase) ? "/reports" : "/arena";
+
+    private string LegendClass(string series) => "legend-toggle" + (_visibleTrendSeries.Contains(series) ? " selected" : " muted");
+
+    private void SetTrendWindow(int days) => _trendWindowDays = days is 7 or 14 ? days : 14;
+
+    private void ToggleTrendSeries(string series)
+    {
+        if (_visibleTrendSeries.Contains(series))
+        {
+            if (_visibleTrendSeries.Count > 1) _visibleTrendSeries.Remove(series);
+        }
+        else if (series is "tested" or "blocked" or "successful" or "incidents")
+        {
+            _visibleTrendSeries.Add(series);
+        }
     }
 
     public void Dispose()
@@ -320,6 +416,7 @@ else if (_summary is not null)
         try
         {
             _ = JS.InvokeVoidAsync("AresTemple.destroy");
+            _ = JS.InvokeVoidAsync("AresControlSurface.destroy");
         }
         catch { }
     }

@@ -61,11 +61,13 @@
     };
 
     var N = (trendData && trendData.tested && trendData.tested.length) ? trendData.tested.length : 14;
-    var tested = (trendData && trendData.tested) ? trendData.tested : [0,0,0,0,0,0,0,0,0,0,0,1,0,2];
+    var tested = (trendData && trendData.tested && trendData.tested.length) ? trendData.tested : new Array(N).fill(0);
     var blocked = (trendData && trendData.blocked) ? trendData.blocked : new Array(N).fill(0);
     var successful = (trendData && trendData.successful) ? trendData.successful : new Array(N).fill(0);
     var incidents = (trendData && trendData.incidents) ? trendData.incidents : new Array(N).fill(0);
     var labels = (trendData && trendData.labels) ? trendData.labels : [];
+    var visible = new Set((trendData && trendData.visible) || ["tested", "blocked", "successful", "incidents"]);
+    var activeIndex = -1;
 
     function render() {
       var dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -78,7 +80,12 @@
       g.clearRect(0, 0, w, h);
 
       var L = 32, R = 16, T = 16, B = 28, pw = w - L - R, ph = h - T - B;
-      var allVals = tested.concat(blocked).concat(successful).concat(incidents);
+      var allVals = [];
+      if (visible.has("tested")) allVals = allVals.concat(tested);
+      if (visible.has("blocked")) allVals = allVals.concat(blocked);
+      if (visible.has("successful")) allVals = allVals.concat(successful);
+      if (visible.has("incidents")) allVals = allVals.concat(incidents);
+      if (!allVals.length) allVals = [0];
       var maxVal = Math.max.apply(null, allVals);
       var max = Math.max(3, maxVal);
 
@@ -115,14 +122,6 @@
             g.fillText(labels[idx], X(idx) + (idx === 0 ? -4 : idx === N - 1 ? 4 : 0), h - 6);
           }
         });
-      } else {
-        var xl = { 0: "21 Sep", 4: "25 Sep", 8: "29 Sep", 13: "04 Oct" };
-        Object.keys(xl).forEach(function (k) {
-          var i = +k;
-          g.textAlign = i === 0 ? "left" : (i === N - 1 ? "right" : "center");
-          g.fillStyle = C.dim;
-          g.fillText(xl[k], X(i) + (i === 0 ? -4 : i === N - 1 ? 4 : 0), h - 6);
-        });
       }
 
       function line(data, color, dash, lw) {
@@ -139,27 +138,29 @@
         g.setLineDash([]);
       }
 
-      line(incidents, C.dim, [3, 4], 1.5);
-      line(successful, C.crimson, [6, 4], 2);
-      line(blocked, C.laurel, [8, 4], 2);
+      if (visible.has("incidents")) line(incidents, C.dim, [3, 4], 1.5);
+      if (visible.has("successful")) line(successful, C.crimson, [6, 4], 2);
+      if (visible.has("blocked")) line(blocked, C.laurel, [8, 4], 2);
 
-      var grad = g.createLinearGradient(0, T, 0, T + ph);
-      grad.addColorStop(0, "rgba(192,138,74,0.38)");
-      grad.addColorStop(0.7, "rgba(192,138,74,0.08)");
-      grad.addColorStop(1, "rgba(192,138,74,0)");
-      g.beginPath();
-      tested.forEach(function (v, i) {
-        if (i) g.lineTo(X(i), Y(v));
-        else g.moveTo(X(i), Y(v));
-      });
-      g.lineTo(X(N - 1), Y(0));
-      g.lineTo(X(0), Y(0));
-      g.closePath();
-      g.fillStyle = grad;
-      g.fill();
-      line(tested, C.bronze, [], 2.5);
+      if (visible.has("tested")) {
+        var grad = g.createLinearGradient(0, T, 0, T + ph);
+        grad.addColorStop(0, "rgba(192,138,74,0.38)");
+        grad.addColorStop(0.7, "rgba(192,138,74,0.08)");
+        grad.addColorStop(1, "rgba(192,138,74,0)");
+        g.beginPath();
+        tested.forEach(function (v, i) {
+          if (i) g.lineTo(X(i), Y(v));
+          else g.moveTo(X(i), Y(v));
+        });
+        g.lineTo(X(N - 1), Y(0));
+        g.lineTo(X(0), Y(0));
+        g.closePath();
+        g.fillStyle = grad;
+        g.fill();
+        line(tested, C.bronze, [], 2.5);
+      }
 
-      if (tested.length > 0) {
+      if (visible.has("tested") && tested.length > 0) {
         var ex = X(N - 1), ey = Y(tested[N - 1]);
         g.beginPath();
         g.arc(ex, ey, 8, 0, 6.2832);
@@ -170,9 +171,35 @@
         g.fillStyle = C.bronze;
         g.fill();
       }
+
+      if (activeIndex >= 0 && activeIndex < N) {
+        g.strokeStyle = "rgba(233,228,216,0.34)";
+        g.setLineDash([3, 4]);
+        g.beginPath();
+        g.moveTo(X(activeIndex), T);
+        g.lineTo(X(activeIndex), T + ph);
+        g.stroke();
+        g.setLineDash([]);
+        var readout = document.getElementById("trend-readout");
+        if (readout) readout.textContent = (labels[activeIndex] || "Selected day") + " · " + tested[activeIndex] + " tested · " + blocked[activeIndex] + " blocked · " + successful[activeIndex] + " succeeded · " + incidents[activeIndex] + " incidents";
+      }
     }
 
     render();
+    c.onpointermove = function (event) {
+      var rect = c.getBoundingClientRect();
+      var x = event.clientX - rect.left;
+      var L = 32, R = 16;
+      var ratio = Math.max(0, Math.min(1, (x - L) / Math.max(1, rect.width - L - R)));
+      activeIndex = Math.round(ratio * Math.max(0, N - 1));
+      render();
+    };
+    c.onpointerleave = function () {
+      activeIndex = -1;
+      render();
+      var readout = document.getElementById("trend-readout");
+      if (readout) readout.textContent = "Hover over the chart to inspect a day.";
+    };
     if (window.ResizeObserver && !c._chartObserver) {
       c._chartObserver = new ResizeObserver(render);
       c._chartObserver.observe(c);
