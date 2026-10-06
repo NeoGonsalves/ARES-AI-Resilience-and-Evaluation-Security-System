@@ -1,0 +1,68 @@
+name: ARES CI
+
+on:
+  push:
+    branches: [ main, newBranch ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    name: Backend Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run pytest unit test suite
+        env:
+          DATABASE_URL: "sqlite:///./test-orchestrator.db"
+          GROQ_API_KEY: "mock-groq-key"
+          GEMINI_API_KEY: "mock-gemini-key"
+          NVIDIA_API_KEY: "mock-nvidia-key"
+          QDRANT_HOST: ":memory:"
+        run: |
+          pytest backend -m "not integration" -v --durations=10
+
+  frontend-tests:
+    name: Frontend Tests (.NET 8.0)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore Ares.sln
+
+      - name: Build solution
+        run: dotnet build Ares.sln --no-restore --configuration Release
+
+      - name: Run .NET test suite
+        run: dotnet test Ares.sln --no-build --configuration Release --verbosity normal

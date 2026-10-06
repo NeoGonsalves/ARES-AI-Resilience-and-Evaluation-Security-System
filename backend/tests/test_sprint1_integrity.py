@@ -321,3 +321,69 @@ def test_closed_loop_token_efficient_hardening() -> None:
             assert data["token_overhead"] >= 0
             assert data["efficiency_score"] is not None and data["efficiency_score"] > 0
             assert data["hardened_score"] >= data["baseline_score"]
+
+
+def test_dashboard_dynamic_trends_and_incidents() -> None:
+    """Verify GET /api/dashboard/trends and GET /api/dashboard/incidents with dynamic DB telemetry."""
+    import uuid
+    from datetime import datetime, timezone
+    from app.database import SessionLocal
+    from app.models import TestRun, Finding, Severity
+
+    # Seed one test run and finding into DB to verify dynamic extraction
+    db = SessionLocal()
+    test_run_id = f"test-trnd-{uuid.uuid4().hex[:8]}"
+    finding_id = f"fnd-trnd-{uuid.uuid4().hex[:8]}"
+    try:
+        tr = TestRun(
+            id=test_run_id,
+            organization_id="org-test",
+            project_id="proj-test",
+            requested_by_user_id="user-test",
+            configuration={"target_application": "Dynamic Test API"},
+            prompt_fingerprint="fprint-123",
+            correlation_id="corr-dyn-999",
+            created_at=datetime.now(timezone.utc),
+        )
+        fnd = Finding(
+            id=finding_id,
+            test_run_id=test_run_id,
+            category="role_play_hijack",
+            severity=Severity.high,
+            risk_score=94,
+            attack_succeeded=True,
+            runtime_classification="Adversarial Role Reversal",
+            safe_summary="Empirical breach probe bypassed refusal boundary",
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(tr)
+        db.add(fnd)
+        db.commit()
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        # 1. Test Trends
+        resp_trends = client.get("/api/dashboard/trends")
+        assert resp_trends.status_code == 200
+        trends_data = resp_trends.json()
+        assert len(trends_data) == 14
+        today_iso = datetime.now(timezone.utc).date().isoformat()
+        today_trend = next((t for t in trends_data if t["date"] == today_iso), None)
+        assert today_trend is not None
+        assert today_trend["tested"] >= 1
+        assert today_trend["successful"] >= 1
+        assert today_trend["incidents"] >= 1
+
+        # 2. Test Incidents
+        resp_inc = client.get("/api/dashboard/incidents")
+        assert resp_inc.status_code == 200
+        inc_data = resp_inc.json()
+        assert len(inc_data) == 5
+        # The newly seeded breach should appear at the top or among incidents
+        seeded = next((inc for inc in inc_data if inc["correlation_id"] == "corr-dyn-999" or inc["id"] == f"INC-{finding_id[:8].upper()}"), None)
+        assert seeded is not None
+        assert seeded["application"] == "Dynamic Test API"
+        assert seeded["category"] == "role_manipulation"
+        assert seeded["severity"] == "high"
+
