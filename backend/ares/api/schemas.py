@@ -281,6 +281,8 @@ class HardenRequest(BaseModel):
     system_prompt:    str
     application_name: str = "ARES App"
     domain:           str = "general"
+    test_id:          Optional[str] = None
+    optimize_tokens:  bool = True
 
 
 class HardenResponse(BaseModel):
@@ -290,6 +292,9 @@ class HardenResponse(BaseModel):
     improvement_points: int
     strategy_applied:   str
     token_overhead:     int
+    baseline_tokens:    Optional[int] = None
+    hardened_tokens:    Optional[int] = None
+    efficiency_score:   Optional[float] = None
     generated_at:       datetime
 
 

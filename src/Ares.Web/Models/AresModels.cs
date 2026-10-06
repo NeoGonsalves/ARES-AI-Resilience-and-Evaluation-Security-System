@@ -117,9 +117,9 @@ public sealed record SearchHit(string Id, double Score, string AttackText, strin
 public sealed record SearchResponse(string Query, int TotalHits, IReadOnlyList<SearchHit> Hits);
 
 // --- Phase 6: Prompt Hardening ---
-public sealed record HardenRequest(string SystemPrompt, string ApplicationName = "ARES App", string Domain = "general");
+public sealed record HardenRequest(string SystemPrompt, string ApplicationName = "ARES App", string Domain = "general", string? TestId = null, bool OptimizeTokens = true);
 public sealed record HardenResponse(string HardenedPrompt, int BaselineScore, int HardenedScore,
-    int ImprovementPoints, string StrategyApplied, int TokenOverhead, DateTimeOffset GeneratedAt);
+    int ImprovementPoints, string StrategyApplied, int TokenOverhead, DateTimeOffset GeneratedAt, int? BaselineTokens = null, int? HardenedTokens = null, double? EfficiencyScore = null);
 
 // Qdrant Vector Corpus & RAG Schemas
 public sealed record AttackCorpusPayload(

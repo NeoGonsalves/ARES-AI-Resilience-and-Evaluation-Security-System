@@ -16,30 +16,36 @@ router = APIRouter(prefix="/api", tags=["harden"])
 
 @router.post("/harden", response_model=HardenResponse)
 async def harden_prompt(request: HardenRequest) -> HardenResponse:
-    """Run the ARES Prompt Optimizer and return the hardened system prompt."""
+    """Run the ARES Prompt Optimizer and return the hardened, token-efficient system prompt."""
     optimizer = PromptOptimizer(settings=settings)
 
-    result = await asyncio.to_thread(
-        asyncio.get_event_loop().run_until_complete,
-        optimizer.optimize(
-            system_prompt=request.system_prompt,
-            application_name=request.application_name,
-            domain=request.domain,
-        ),
+    result = await optimizer.optimize(
+        system_prompt=request.system_prompt,
+        application_name=request.application_name,
+        domain=request.domain,
+        test_id=request.test_id,
+        optimize_tokens=request.optimize_tokens,
     )
 
-    baseline = int(getattr(result, "baseline_attack_success_rate", 0.15) * 100)
-    hardened = int(getattr(result, "final_attack_success_rate", 0.02) * 100)
-    strategy = getattr(result, "strategy_applied", "zero_trust_boundary")
+    baseline = int(getattr(result, "baseline_robustness", 15.0))
+    hardened = int(getattr(result, "hardened_robustness", 95.0))
+    strategies = getattr(result, "strategies_applied", ["zero_trust_boundary"])
+    strategy_name = strategies[0] if strategies else "zero_trust_boundary"
     hardened_prompt = getattr(result, "hardened_prompt", request.system_prompt)
-    overhead = max(0, len(hardened_prompt) - len(request.system_prompt))
+    overhead = getattr(result, "token_overhead", max(0, len(hardened_prompt.split()) - len(request.system_prompt.split())))
+    base_tok = getattr(result, "baseline_tokens", max(1, int(len(request.system_prompt.split()) * 1.3)))
+    hard_tok = getattr(result, "hardened_tokens", max(1, int(len(hardened_prompt.split()) * 1.3)))
+    eff_score = getattr(result, "efficiency_score", round(base_tok / hard_tok, 2) if hard_tok > 0 else 1.0)
 
     return HardenResponse(
         hardened_prompt=hardened_prompt,
         baseline_score=baseline,
         hardened_score=hardened,
-        improvement_points=baseline - hardened,
-        strategy_applied=strategy,
-        token_overhead=overhead // 4,   # rough token estimate
+        improvement_points=max(0, hardened - baseline),
+        strategy_applied=strategy_name,
+        token_overhead=overhead,
+        baseline_tokens=base_tok,
+        hardened_tokens=hard_tok,
+        efficiency_score=eff_score,
         generated_at=datetime.now(timezone.utc),
     )

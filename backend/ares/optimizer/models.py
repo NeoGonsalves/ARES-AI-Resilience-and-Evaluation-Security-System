@@ -75,6 +75,18 @@ class HardeningConfig(BaseModel):
         default=True,
         description="Whether to generate a unified diff between baseline and hardened prompts",
     )
+    test_id: Optional[str] = Field(
+        default=None,
+        description="Previous test run ID to incorporate empirical breaches from",
+    )
+    empirical_breaches: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="Direct empirical breach attempts to harden against",
+    )
+    optimize_tokens: bool = Field(
+        default=True,
+        description="Whether to optimize prompt for token efficiency and compact declarative syntax",
+    )
 
 
 class HardeningIteration(BaseModel):
@@ -109,7 +121,10 @@ class HardeningResult(BaseModel):
     iteration_history: List[HardeningIteration] = Field(default_factory=list)
     baseline_report: Optional[RobustnessReport] = None
     hardened_report: Optional[RobustnessReport] = None
+    baseline_tokens: int = 0
+    hardened_tokens: int = 0
     token_overhead: int = 0
+    efficiency_score: float = 1.0
     text_diff: str = ""
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
@@ -134,10 +149,11 @@ class HardeningResult(BaseModel):
         hard_score = hardened_report.overall_robustness_score
         delta = hard_score - base_score
 
-        # Approximate token overhead (~1.3 tokens per whitespace word)
-        orig_tokens = len(original_prompt.split())
-        hard_tokens = len(hardened_prompt.split())
+        # Calculate token metrics (~1.3 tokens per whitespace word)
+        orig_tokens = max(1, int(len(original_prompt.split()) * 1.3))
+        hard_tokens = max(1, int(len(hardened_prompt.split()) * 1.3))
         token_overhead = max(0, hard_tokens - orig_tokens)
+        efficiency_score = round(orig_tokens / hard_tokens, 2) if hard_tokens > 0 else 1.0
 
         # Generate unified text diff
         text_diff = ""
@@ -166,7 +182,10 @@ class HardeningResult(BaseModel):
             iteration_history=iteration_history,
             baseline_report=baseline_report,
             hardened_report=hardened_report,
+            baseline_tokens=orig_tokens,
+            hardened_tokens=hard_tokens,
             token_overhead=token_overhead,
+            efficiency_score=efficiency_score,
             text_diff=text_diff,
         )
 

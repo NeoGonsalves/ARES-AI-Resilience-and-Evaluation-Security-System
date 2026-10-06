@@ -27,6 +27,21 @@ class QdrantStoreError(Exception):
     pass
 
 
+_SHARED_LOCAL_CLIENTS: Dict[str, QdrantClient] = {}
+
+
+def _get_local_client(storage_path: str) -> QdrantClient:
+    import os
+    norm_path = os.path.abspath(storage_path)
+    if norm_path not in _SHARED_LOCAL_CLIENTS:
+        try:
+            _SHARED_LOCAL_CLIENTS[norm_path] = QdrantClient(path=storage_path)
+        except Exception as exc:
+            logger.warning("Could not acquire lock for %s (%s); falling back to in-memory Qdrant", storage_path, exc)
+            return QdrantClient(":memory:")
+    return _SHARED_LOCAL_CLIENTS[norm_path]
+
+
 class QdrantStore:
     """
     Vector storage and RAG retrieval interface using Qdrant Cloud.
@@ -53,7 +68,7 @@ class QdrantStore:
                 if url == ":memory:":
                     self._client = QdrantClient(":memory:")
                 else:
-                    self._client = QdrantClient(path=storage_path)
+                    self._client = _get_local_client(storage_path)
             else:
                 try:
                     self._client = QdrantClient(
@@ -64,7 +79,7 @@ class QdrantStore:
                     self._client.get_collections()
                 except Exception as exc:
                     logger.warning("Remote Qdrant connection failed (%s); switching to local persistent vector store at ./qdrant_data", exc)
-                    self._client = QdrantClient(path="./qdrant_data")
+                    self._client = _get_local_client("./qdrant_data")
 
     @property
     def client(self) -> QdrantClient:
