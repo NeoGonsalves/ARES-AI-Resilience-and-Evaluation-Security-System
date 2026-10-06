@@ -1,6 +1,7 @@
 @page "/"
 @implements IDisposable
 @inject IAresApiClient Api
+@inject IJSRuntime JS
 
 <PageTitle>Overview · ARES</PageTitle>
 
@@ -14,71 +15,224 @@ else if (_error is not null)
 }
 else if (_summary is not null)
 {
-    <section class="page-intro dashboard-intro">
-        <div><p class="eyebrow">Security posture / 14-day view</p><h1>Control surface</h1><p>Protected applications, attack outcomes, and enforcement signals in one operational view.</p></div>
-        <div class="intro-meta"><span>Last refreshed</span><strong>@_summary.GeneratedAt.ToString("dd MMM yyyy, HH:mm") IST</strong><button class="text-button" @onclick="LoadAsync">Refresh data</button></div>
+    <!-- WebGL Temple Stage Hero -->
+    <section class="stage" id="stage" aria-label="Security posture hero">
+        <canvas id="gl" aria-hidden="true"></canvas>
+        <div class="fallback" aria-hidden="true"></div>
+        <div class="stage-copy">
+            <p class="eyebrow">Security posture / 14-day view</p>
+            <h1>Control surface</h1>
+            <p class="lede">Protected applications, attack outcomes, and enforcement signals in one operational view.</p>
+            <p class="flavor" id="flavor" aria-live="polite">@FlavorText</p>
+            <div class="refresh">
+                <div>
+                    <small>Last refreshed</small>
+                    <time id="stamp">@_summary.GeneratedAt.ToString("dd MMM yyyy, HH:mm") IST</time>
+                </div>
+                <button class="btn" id="refresh" type="button" @onclick="LoadAsync">Refresh data</button>
+            </div>
+        </div>
+        <div class="posture" role="group" aria-label="Preview shield posture">
+            <span>Preview posture</span>
+            <div class="seg">
+                <button type="button" data-state="safe" class="@(_posture == "safe" ? "active" : "")" aria-pressed="@(_posture == "safe")" @onclick='() => SetPosture("safe")'>Safe</button>
+                <button type="button" data-state="elevated" class="@(_posture == "elevated" ? "active" : "")" aria-pressed="@(_posture == "elevated")" @onclick='() => SetPosture("elevated")'>Elevated</button>
+                <button type="button" data-state="breached" class="@(_posture == "breached" ? "active" : "")" aria-pressed="@(_posture == "breached")" @onclick='() => SetPosture("breached")'>Breached</button>
+            </div>
+        </div>
+        <div class="stage-readout" id="component-readout" role="status" aria-live="polite">
+            <span class="readout-pulse"></span><span id="component-name">ARES NETWORK</span><span id="component-health">ALL SYSTEMS NOMINAL</span>
+        </div>
+        <div class="stage-note">drag to orbit · select a node to inspect</div>
     </section>
 
-    @if (_summary.IsPartial)
-    {
-        <div class="inline-notice warning" role="status"><strong>Partial response.</strong> Some dashboard services did not respond; displayed data is current where available.</div>
-    }
+    <div class="meander" aria-hidden="true"></div>
 
-    <section aria-labelledby="summary-heading">
-        <div class="section-heading"><div><p class="eyebrow">Executive security summary</p><h2 id="summary-heading">Current security posture</h2></div><p>Comparisons use the preceding 14-day period.</p></div>
-        <div class="metric-grid">
-            @foreach (var metric in _summary.Metrics) { <MetricSummary Metric="metric" /> }
+    <section class="ops-console" aria-label="Security operations quick actions">
+        <div class="ops-console-head">
+            <div>
+                <p class="eyebrow">Operations / live workspace</p>
+                <h2>Move from signal to action</h2>
+            </div>
+            <div class="workspace-health"><span class="readout-pulse"></span><span>API connected</span><small>@_summary.ProtectedApplications protected app@( _summary.ProtectedApplications == 1 ? "" : "s") · @_summary.CorpusSize attack vectors</small></div>
+        </div>
+        <div class="ops-console-grid">
+            <article class="next-action">
+                <div class="next-action-top"><span class="action-kicker">Suggested next move</span><span class="action-index">ARES / 01</span></div>
+                <h3>@RecommendedActionTitle</h3>
+                <p>@RecommendedActionDescription</p>
+                <a class="action-link" href="@RecommendedActionHref">@RecommendedActionLabel <span aria-hidden="true">↗</span></a>
+            </article>
+            <a class="launch-card launch-primary" href="/arena/challenges?track=Attacker">
+                <span class="launch-icon" aria-hidden="true">↗</span><span class="launch-kicker">01 / validate</span>
+                <strong>Run an attack exercise</strong><span>Challenge a prompt in ARES Arena.</span><span class="launch-arrow">Open attacker track →</span>
+            </a>
+            <a class="launch-card" href="/runtime-incidents">
+                <span class="launch-icon" aria-hidden="true">◉</span><span class="launch-kicker">02 / investigate</span>
+                <strong>Review incidents</strong><span>@(_incidents.Count == 0 ? "No active incidents. Inspect the event stream." : $"{_incidents.Count} incident{(_incidents.Count == 1 ? "" : "s")} need review.")</span><span class="launch-arrow">Open incident queue →</span>
+            </a>
+            <a class="launch-card" href="/attack-corpus">
+                <span class="launch-icon" aria-hidden="true">⌘</span><span class="launch-kicker">03 / explore</span>
+                <strong>Explore attack patterns</strong><span>Search the knowledge base and adversarial corpus.</span><span class="launch-arrow">Open attack corpus →</span>
+            </a>
         </div>
     </section>
 
-    <section class="dashboard-two-col" aria-label="Security trends and attack analysis">
-        <article class="surface-card trend-panel">
-            <div class="section-heading compact"><div><p class="eyebrow">Security trend</p><h2>Tests and enforcement outcomes</h2></div><span class="subtle-code">14 DAYS</span></div>
-            <TrendChart Data="_trends" />
-        </article>
-        <article class="surface-card category-panel">
-            <div class="section-heading compact"><div><p class="eyebrow">Attack-category analysis</p><h2>Where controls are challenged</h2></div></div>
-            <ul class="category-list">
-                @foreach (var category in _categories)
-                {
-                    <li>
-                        <div class="category-label"><span>@category.Category.ToLabel()</span><strong>@category.SuccessRate% success</strong></div>
-                        <div class="category-bar" aria-label="@category.Category.ToLabel(): @category.SuccessRate percent successful"><span style="width: @category.SuccessRate%"></span></div>
-                        <small>@category.Tests tests · @category.Blocked blocked · @category.Successful successful</small>
-                    </li>
-                }
-            </ul>
-        </article>
+    <div class="sect-head dashboard-section-head">
+        <div><p class="eyebrow">Signal overview</p><h2>Security posture</h2></div>
+        <p>Live measurements · updated @_summary.GeneratedAt.ToLocalTime().ToString("HH:mm")</p>
+    </div>
+
+    <section class="kpis" aria-label="Key metrics">
+        @for (int i = 0; i < Math.Min(4, _summary.Metrics.Count); i++)
+        {
+            var metric = _summary.Metrics[i];
+            var pillClass = metric.Status switch
+            {
+                Severity.Safe => "pill-safe",
+                Severity.Low => "pill-low",
+                Severity.Medium => "pill-medium",
+                Severity.High => "pill-high",
+                Severity.Critical => "pill-critical",
+                _ => "pill-safe"
+            };
+            <a class="tablet" href="@MetricHref(metric.Label)" aria-label="@metric.Label: @metric.Value. Open related workspace">
+                <header>
+                    <span>@metric.Label</span>
+                    <span class="pill @pillClass">@metric.Status.ToString().ToUpperInvariant()</span>
+                </header>
+                <div class="num">@metric.Value</div>
+                <div class="delta">@metric.Change</div>
+                <div class="hint">@metric.Description</div>
+                <span class="tablet-link">Open details <span aria-hidden="true">↗</span></span>
+            </a>
+        }
     </section>
 
-    <section class="dashboard-two-col lower-grid" aria-label="Incidents and hardening">
-        <article class="surface-card incidents-panel">
-            <div class="section-heading compact"><div><p class="eyebrow">Recent critical incidents</p><h2>Requires analyst attention</h2></div><a class="text-button" href="/runtime-incidents">All incidents</a></div>
+    <!-- Trends and Categories -->
+    <section class="grid2">
+        <div class="panel trend-panel">
+            <div class="panel-heading-row">
+                <div><p class="eyebrow" style="margin:0">Telemetry / rolling window</p><h3>Test and enforcement activity</h3></div>
+                <div class="seg chart-range" role="group" aria-label="Chart time range">
+                    <button type="button" class="@(_trendWindowDays == 7 ? "active" : "")" aria-pressed="@(_trendWindowDays == 7)" @onclick="() => SetTrendWindow(7)">7 days</button>
+                    <button type="button" class="@(_trendWindowDays == 14 ? "active" : "")" aria-pressed="@(_trendWindowDays == 14)" @onclick="() => SetTrendWindow(14)">14 days</button>
+                </div>
+            </div>
+            <div class="legend trend-toggles" role="group" aria-label="Toggle chart series">
+                <button type="button" class="@LegendClass("tested")" aria-pressed="@_visibleTrendSeries.Contains("tested")" @onclick='() => ToggleTrendSeries("tested")'><i style="background:var(--bronze)"></i>Attacks tested</button>
+                <button type="button" class="@LegendClass("blocked")" aria-pressed="@_visibleTrendSeries.Contains("blocked")" @onclick='() => ToggleTrendSeries("blocked")'><i style="background:var(--laurel)"></i>Attacks blocked</button>
+                <button type="button" class="@LegendClass("successful")" aria-pressed="@_visibleTrendSeries.Contains("successful")" @onclick='() => ToggleTrendSeries("successful")'><i style="background:var(--crimson)"></i>Successful attacks</button>
+                <button type="button" class="@LegendClass("incidents")" aria-pressed="@_visibleTrendSeries.Contains("incidents")" @onclick='() => ToggleTrendSeries("incidents")'><i style="background:var(--marble-dim)"></i>Runtime incidents</button>
+            </div>
+            <canvas id="trend" role="img" aria-label="Interactive chart. Toggle a series or move over the chart to inspect daily test, enforcement, and incident counts."></canvas>
+            <p class="chart-readout" id="trend-readout" aria-live="polite">Hover over the chart to inspect a day.</p>
+            <p class="empty-note">
+                @if (_trends.Count > 0)
+                {
+                    <span>Showing the latest @Math.Min(_trendWindowDays, _trends.Count) days, from @(_trends.TakeLast(_trendWindowDays).First().Date.ToString("dd MMM")) to @(_trends.Last().Date.ToString("dd MMM")).</span>
+                }
+                else
+                {
+                    <span>No test runs recorded in this window. Start an exercise to create the first live signal.</span>
+                }
+            </p>
+        </div>
+
+        <div class="panel">
+            <p class="eyebrow" style="margin:0">Attack-category analysis</p>
+            <h3>Where controls are challenged</h3>
+            <ul class="cats">
+                @if (_categories.Count == 0)
+                {
+                    <li>
+                            <span>Direct prompt injection</span>
+                        <code>0 / 0 (0%)</code>
+                        <div class="track"><i style="width: 0%"></i></div>
+                    </li>
+                    <li>
+                        <span>System prompt extraction</span>
+                        <code>0 / 0 (0%)</code>
+                        <div class="track"><i style="width: 0%"></i></div>
+                    </li>
+                    <li>
+                        <span>Data exfiltration</span>
+                        <code>0 / 0 (0%)</code>
+                        <div class="track"><i style="width: 0%"></i></div>
+                    </li>
+                    <li>
+                        <span>Policy bypass</span>
+                        <code>0 / 0 (0%)</code>
+                        <div class="track"><i style="width: 0%"></i></div>
+                    </li>
+                }
+                else
+                {
+                    @foreach (var category in _categories)
+                    {
+                        <li>
+                            <span>@category.Category.ToLabel()<a class="category-practice" href="/arena/challenges?category=@category.Category" aria-label="Practice @category.Category.ToLabel() in ARES Arena">Practice ↗</a></span>
+                            <code>@category.Successful / @category.Tests (@category.SuccessRate%)</code>
+                            <div class="track"><i style="width: @(category.SuccessRate)%"></i></div>
+                        </li>
+                    }
+                }
+            </ul>
+            <p class="empty-note">Attack categories tracked by ARES. Bars fill crimson as attacks succeed.</p>
+        </div>
+    </section>
+
+    <!-- The Oracle (Incidents) -->
+    <section class="panel oracle">
+        <div class="eye @(_incidents.Count > 0 ? "alert" : "")" aria-hidden="true"><i></i></div>
+        <div>
             @if (_incidents.Count == 0)
             {
-                <EmptyState Eyebrow="No incidents" Title="No active incidents detected." Message="Runtime enforcement has not reported an incident during this period." />
+                <h3>The Oracle is silent</h3>
+                <p>No runtime incidents in the last 14 days. Enforcement is holding on the production mirror.</p>
             }
             else
             {
-                <div class="history-table-wrap"><table class="data-table"><caption class="sr-only">Recent runtime incidents</caption><thead><tr><th scope="col">Incident</th><th scope="col">Application</th><th scope="col">Severity</th><th scope="col">Enforcement action</th><th scope="col">Status</th></tr></thead><tbody>
-                    @foreach (var incident in _incidents.Take(5))
-                    {
-                        <tr><th scope="row">@incident.Id<small>@incident.Category.ToLabel() · @incident.DetectedAt.ToString("dd MMM, HH:mm")</small></th><td>@incident.Application</td><td><SeverityBadge Value="incident.Severity" /></td><td>@incident.EnforcementAction</td><td><span class="table-status">@incident.Status</span></td></tr>
-                    }
-                </tbody></table></div>
+                <h3>The Oracle speaks: @_incidents.Count active incident@(_incidents.Count > 1 ? "s" : "")</h3>
+                <p>Recent: @_incidents[0].Application (@_incidents[0].Severity.ToString()) — @_incidents[0].EnforcementAction</p>
             }
-        </article>
-        <article class="surface-card hardening-panel">
-            <div class="section-heading compact"><div><p class="eyebrow">Prompt-hardening comparison</p><h2>Measured control improvement</h2></div></div>
-            <div class="hardening-rates"><div><span>Baseline success rate</span><strong>@_hardening.BaselineSuccessRate%</strong></div><span class="rate-arrow" aria-hidden="true">→</span><div><span>Hardened success rate</span><strong>@_hardening.HardenedSuccessRate%</strong></div></div>
-            <div class="improvement-callout"><span>Absolute improvement</span><strong>@_hardening.ImprovementPoints pts</strong><p>Across @_hardening.TestsIncluded controlled tests. Last cycle: @_hardening.LastCycle.ToString("dd MMM yyyy").</p></div>
-            <a class="button button-secondary" href="/arena">Review in ARES Arena</a>
-        </article>
+        </div>
+        <a class="btn" href="/runtime-incidents">Open incidents</a>
     </section>
 
-    <section class="surface-card provider-panel" aria-labelledby="provider-heading">
-        <div class="section-heading compact"><div><p class="eyebrow">Provider health</p><h2 id="provider-heading">Integration state</h2></div><span class="subtle-code">CHECKED @(_providers.FirstOrDefault()?.CheckedAt.ToString("HH:mm") ?? "—") IST</span></div>
-        <ul class="provider-list">@foreach (var health in _providers) { <ProviderHealthRow Health="health" /> }</ul>
+    <!-- Hardening & Provider Integration -->
+    <section class="grid2">
+        <div class="panel">
+            <p class="eyebrow" style="margin:0">Prompt-hardening comparison</p>
+            <h3>Measured control improvement</h3>
+            <div class="hardening-rates">
+                <div><span>Baseline success rate</span><strong>@_hardening.BaselineSuccessRate%</strong></div>
+                <span class="rate-arrow" aria-hidden="true">→</span>
+                <div><span>Hardened success rate</span><strong>@_hardening.HardenedSuccessRate%</strong></div>
+            </div>
+            <div class="improvement-callout">
+                <span>Absolute improvement</span><strong>@_hardening.ImprovementPoints pts</strong>
+                <p>Across @_hardening.TestsIncluded controlled tests. Last cycle: @(_hardening.LastCycle != DateOnly.MinValue ? _hardening.LastCycle.ToString("dd MMM yyyy") : "None yet").</p>
+            </div>
+            <a class="btn" href="/arena">Review in ARES Arena</a>
+        </div>
+
+        <div class="panel">
+            <p class="eyebrow" style="margin:0">Provider health</p>
+            <h3>Integration state</h3>
+            <ul class="provider-list-temple">
+                @foreach (var health in _providers)
+                {
+                    <li class="provider-item-temple">
+                        <div>
+                            <strong>@health.Name</strong>
+                            <small>@health.Detail</small>
+                        </div>
+                        <span class="pill status-@health.Status.ToString().ToLowerInvariant()">@health.Status</span>
+                    </li>
+                }
+            </ul>
+        </div>
     </section>
 }
 
@@ -91,13 +245,48 @@ else if (_summary is not null)
     private IReadOnlyList<ProviderHealth> _providers = [];
     private HardeningComparison _hardening = new(0, 0, 0, 0, DateOnly.MinValue);
     private bool _loading = true;
+    private bool _sceneInitialized;
     private string? _error;
+    private string _posture = "safe";
+    private int _trendWindowDays = 14;
+    private readonly HashSet<string> _visibleTrendSeries = new(StringComparer.Ordinal)
+        { "tested", "blocked", "successful", "incidents" };
+
+    private int ExecutedTestCount
+    {
+        get
+        {
+            var value = _summary?.Metrics.FirstOrDefault(m => m.Label.Contains("test", StringComparison.OrdinalIgnoreCase))?.Value;
+            return int.TryParse(value, out var count) ? count : 0;
+        }
+    }
+
+    private string RecommendedActionTitle => _incidents.Count > 0
+        ? "Investigate the latest incident"
+        : ExecutedTestCount == 0 ? "Run your first security exercise" : "Validate the latest changes";
+
+    private string RecommendedActionDescription => _incidents.Count > 0
+        ? $"There {( _incidents.Count == 1 ? "is" : "are") } {_incidents.Count} recent incident{(_incidents.Count == 1 ? "" : "s")}. Review the evidence and enforcement action."
+        : ExecutedTestCount == 0
+            ? "Start with a guided attacker challenge and record your first real assessment."
+            : $"ARES has recorded {ExecutedTestCount} controlled test{(ExecutedTestCount == 1 ? "" : "s")}. Run another exercise to validate a prompt or policy change.";
+
+    private string RecommendedActionHref => _incidents.Count > 0 ? "/runtime-incidents" : "/arena/challenges?track=Attacker";
+    private string RecommendedActionLabel => _incidents.Count > 0 ? "Investigate incidents" : ExecutedTestCount == 0 ? "Start first exercise" : "Launch a new exercise";
+
+    private string FlavorText => _posture switch
+    {
+        "elevated" => "Elevated activity detected. Inspect the highlighted controls.",
+        "breached" => "Threat activity is breaching controls. Review affected systems.",
+        _ => "The control network is holding. All routes are protected."
+    };
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
     private async Task LoadAsync()
     {
-        _loading = true; _error = null;
+        _loading = true;
+        _error = null;
         try
         {
             var summaryTask = Api.GetDashboardSummaryAsync(_cancellation.Token);
@@ -107,13 +296,128 @@ else if (_summary is not null)
             var hardeningTask = Api.GetHardeningComparisonAsync(_cancellation.Token);
             var providersTask = Api.GetProviderHealthAsync(_cancellation.Token);
             await Task.WhenAll(summaryTask, trendsTask, categoriesTask, incidentsTask, hardeningTask, providersTask);
-            _summary = await summaryTask; _trends = await trendsTask; _categories = await categoriesTask;
-            _incidents = await incidentsTask; _hardening = await hardeningTask; _providers = await providersTask;
+            _summary = await summaryTask;
+            _trends = await trendsTask;
+            _categories = await categoriesTask;
+            _incidents = await incidentsTask;
+            _hardening = await hardeningTask;
+            _providers = await providersTask;
+
+            // Automatically compute initial posture from live security data
+            DerivePostureFromData();
         }
         catch (OperationCanceledException) { }
-        catch { _error = "Unable to retrieve dashboard data from the ARES API."; }
-        finally { _loading = false; }
+        catch
+        {
+            _error = "Unable to retrieve dashboard data from the ARES API.";
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
-    public void Dispose() => _cancellation.Cancel();
+    private void DerivePostureFromData()
+    {
+        if (_summary == null) return;
+        // Check avg risk score or attack success rate from metrics
+        var avgRiskMetric = _summary.Metrics.FirstOrDefault(m => m.Label.Contains("risk", StringComparison.OrdinalIgnoreCase));
+        var successRateMetric = _summary.Metrics.FirstOrDefault(m => m.Label.Contains("success", StringComparison.OrdinalIgnoreCase));
+
+        int riskScore = 0;
+        if (avgRiskMetric != null && int.TryParse(avgRiskMetric.Value, out var parsedRisk))
+        {
+            riskScore = parsedRisk;
+        }
+
+        if (riskScore >= 60 || _incidents.Count > 0)
+        {
+            _posture = "breached";
+        }
+        else if (riskScore >= 20 || (successRateMetric != null && !successRateMetric.Value.StartsWith("0%")))
+        {
+            _posture = "elevated";
+        }
+        else
+        {
+            _posture = "safe";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_summary != null)
+        {
+            try
+            {
+                if (!_sceneInitialized)
+                {
+                    await JS.InvokeVoidAsync("AresControlSurface.init", "stage", "gl", _posture);
+                    _sceneInitialized = true;
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("AresControlSurface.setPosture", _posture);
+                }
+                var trendWindow = _trends.TakeLast(_trendWindowDays).ToList();
+                var trendData = new
+                {
+                    tested = trendWindow.Select(t => t.Tested).ToArray(),
+                    blocked = trendWindow.Select(t => t.Blocked).ToArray(),
+                    successful = trendWindow.Select(t => t.Successful).ToArray(),
+                    incidents = trendWindow.Select(t => t.Incidents).ToArray(),
+                    labels = trendWindow.Select(t => t.Date.ToString("dd MMM")).ToArray(),
+                    visible = _visibleTrendSeries.ToArray()
+                };
+                await JS.InvokeVoidAsync("AresTemple.drawTrend", "trend", trendData);
+                await JS.InvokeVoidAsync("AresTemple.initTilt");
+            }
+            catch
+            {
+                // In case JS interop is invoked before DOM is fully ready or during teardown
+            }
+        }
+    }
+
+    private async Task SetPosture(string state)
+    {
+        _posture = state;
+        try
+        {
+            await JS.InvokeVoidAsync("AresControlSurface.setPosture", state);
+        }
+        catch { }
+    }
+
+    private string MetricHref(string label) => label.Contains("blocked", StringComparison.OrdinalIgnoreCase)
+        || label.Contains("success", StringComparison.OrdinalIgnoreCase)
+            ? "/runtime-incidents"
+            : label.Contains("risk", StringComparison.OrdinalIgnoreCase) ? "/reports" : "/arena";
+
+    private string LegendClass(string series) => "legend-toggle" + (_visibleTrendSeries.Contains(series) ? " selected" : " muted");
+
+    private void SetTrendWindow(int days) => _trendWindowDays = days is 7 or 14 ? days : 14;
+
+    private void ToggleTrendSeries(string series)
+    {
+        if (_visibleTrendSeries.Contains(series))
+        {
+            if (_visibleTrendSeries.Count > 1) _visibleTrendSeries.Remove(series);
+        }
+        else if (series is "tested" or "blocked" or "successful" or "incidents")
+        {
+            _visibleTrendSeries.Add(series);
+        }
+    }
+
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        try
+        {
+            _ = JS.InvokeVoidAsync("AresTemple.destroy");
+            _ = JS.InvokeVoidAsync("AresControlSurface.destroy");
+        }
+        catch { }
+    }
 }

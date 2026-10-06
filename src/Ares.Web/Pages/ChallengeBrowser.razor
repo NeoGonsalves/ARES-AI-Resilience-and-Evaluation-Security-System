@@ -127,6 +127,7 @@ else
 
 @code {
     [SupplyParameterFromQuery] private string? track { get; set; }
+    [SupplyParameterFromQuery] private string? category { get; set; }
 
     private ChallengePageResult? _result;
     private bool _loading = true;
@@ -140,6 +141,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         if (Enum.TryParse<ChallengeTrack>(track, out var t)) _track = t;
+        if (Enum.TryParse<AttackCategory>(category, true, out var selectedCategory)) _category = selectedCategory;
         await LoadAsync();
     }
 
