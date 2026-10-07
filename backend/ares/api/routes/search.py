@@ -16,29 +16,31 @@ router = APIRouter(prefix="/api", tags=["search"])
 @router.post("/search", response_model=SearchResponse)
 async def search_attacks(request: SearchRequest) -> SearchResponse:
     """Semantic similarity search over the Qdrant attack corpus."""
-    embedder = GeminiEmbedder(settings=settings)
-    store    = QdrantStore(settings=settings)
-
-    vector = embedder.embed(request.query)
-    raw_hits = store.search_similar_attacks(
-        query_vector=vector,
-        category_filter=request.category,
-        limit=request.limit,
-    )
-
+    store = QdrantStore(settings=settings)
     hits: list[SearchHit] = []
-    for h in raw_hits:
-        payload = h.payload or {}
-        hits.append(SearchHit(
-            id=str(h.id),
-            score=round(float(h.score), 4),
-            attack_text=payload.get("attack_text", "")[:500],
-            category=payload.get("category", "unknown"),
-            source=payload.get("source", "corpus"),
-            domain=payload.get("domain", "general"),
-            severity=payload.get("severity", "medium"),
-            operator_applied=payload.get("operator_applied"),
-        ))
+
+    try:
+        raw_hits = await store.search_similar_attacks(
+            query_text=request.query,
+            category=request.category,
+            limit=request.limit,
+        )
+
+        for h in raw_hits:
+            payload = h.get("payload", {})
+            hits.append(SearchHit(
+                id=str(h.get("id")),
+                score=round(float(h.get("score", 0.0)), 4),
+                attack_text=payload.get("attack_text", "")[:500],
+                category=payload.get("category", "unknown"),
+                source=payload.get("source", "corpus"),
+                domain=payload.get("domain", "general"),
+                severity=payload.get("severity", "medium"),
+                operator_applied=payload.get("operator_applied"),
+            ))
+    except Exception as exc:
+        import logging
+        logging.getLogger("ares.search").warning("Qdrant semantic search exception: %s", exc)
 
     return SearchResponse(
         query=request.query,

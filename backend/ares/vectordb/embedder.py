@@ -97,6 +97,11 @@ class GeminiEmbedder:
                     return values
 
                 elif response.status_code == 429:
+                    err_text = response.text
+                    if "RESOURCE_EXHAUSTED" in err_text or "Quota exceeded" in err_text:
+                        logger.warning("Gemini daily embedding quota reached (429). Activating local deterministic semantic vector projection.")
+                        self._gemini_rate_limited = True
+                        return self._fallback_project_embeddings([text])[0]
                     retries += 1
                     wait = min(
                         self.settings.retry_max_wait_seconds,
