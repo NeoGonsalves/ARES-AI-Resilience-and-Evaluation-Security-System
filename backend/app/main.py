@@ -33,6 +33,7 @@ from app.security import PayloadCipher, payload_expiry
 from ares.api.routes import (
     corpus as ares_corpus,
     dashboard as ares_dashboard,
+    gateway as ares_gateway,
     harden as ares_harden,
     search as ares_search,
     stats as ares_stats,
@@ -83,13 +84,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Unified ARES Vector Security, ML Analytics, and Hardening Routers
+# Unified ARES Vector Security, ML Analytics, Hardening, and Gateway Routers
 app.include_router(ares_dashboard.router)
 app.include_router(ares_stats.router)
 app.include_router(ares_search.router)
 app.include_router(ares_harden.router)
 app.include_router(ares_corpus.router)
 app.include_router(ares_tests.router)
+app.include_router(ares_gateway.router)
 
 # Explicit v1 aliases for frontend compatibility
 @app.get("/api/v1/stats", tags=["stats"])
