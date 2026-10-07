@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from ares.api.routes import dashboard, tests, harden, search, stats, corpus
+from ares.api.routes import dashboard, tests, harden, search, stats, corpus, gateway
 
 app = FastAPI(
     title="ARES — AI Resilience & Evaluation Security System",
@@ -41,6 +41,7 @@ app.include_router(harden.router)
 app.include_router(search.router)
 app.include_router(stats.router)
 app.include_router(corpus.router)
+app.include_router(gateway.router)
 
 # Also expose /api/models (simple static list)
 from fastapi import APIRouter as _APIRouter

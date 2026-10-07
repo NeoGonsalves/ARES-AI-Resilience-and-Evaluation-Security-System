@@ -1,9 +1,9 @@
-"""Harden endpoint — runs PromptOptimizer and returns a hardened prompt."""
-
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter
 
@@ -12,6 +12,7 @@ from ares.config import settings
 from ares.optimizer.optimizer import PromptOptimizer
 
 router = APIRouter(prefix="/api", tags=["harden"])
+_ML_REPORT_PATH = Path(__file__).parent.parent.parent.parent / "ml_vector_analysis_report.json"
 
 
 @router.post("/harden", response_model=HardenResponse)
@@ -37,6 +38,17 @@ async def harden_prompt(request: HardenRequest) -> HardenResponse:
     hard_tok = getattr(result, "hardened_tokens", max(1, int(len(hardened_prompt.split()) * 1.3)))
     eff_score = getattr(result, "efficiency_score", round(base_tok / hard_tok, 2) if hard_tok > 0 else 1.0)
 
+    # Read last updated timestamp of the ML classification model
+    ml_updated_at: datetime | None = None
+    if _ML_REPORT_PATH.exists():
+        try:
+            ml_data = json.loads(_ML_REPORT_PATH.read_text(encoding="utf-8"))
+            ts_str = ml_data.get("generated_at")
+            if ts_str:
+                ml_updated_at = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
     return HardenResponse(
         hardened_prompt=hardened_prompt,
         baseline_score=baseline,
@@ -47,5 +59,9 @@ async def harden_prompt(request: HardenRequest) -> HardenResponse:
         baseline_tokens=base_tok,
         hardened_tokens=hard_tok,
         efficiency_score=eff_score,
+        provider_used=settings.hardener_provider,
+        model_used=settings.hardener_model,
+        ml_model_updated_at=ml_updated_at,
         generated_at=datetime.now(timezone.utc),
     )
+

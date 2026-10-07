@@ -1,16 +1,15 @@
-@page "/attack-corpus"
-@page "/runtime-incidents"
-@page "/prompt-configurations"
 @page "/settings"
 
-<PageTitle>Planned module · ARES</PageTitle>
+<PageTitle>Settings · ARES</PageTitle>
 
 <section class="planned-module">
-    <p class="eyebrow">Planned module</p>
-    <h1>@ModuleName</h1>
-    <p>This area has a prepared route and shell, but its detailed workflow is planned for a future delivery sprint.</p>
+    <p class="eyebrow">ARES Operations</p>
+    <h1>Settings & Governance</h1>
+    <p>Configure security thresholds, API keys, provider failover routing, and canary tokens.</p>
     <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:1.5rem">
-        <a class="button button-primary" href="/arena">ARES Arena</a>
+        <a class="button button-primary" href="/optimizer">Prompt Optimizer</a>
+        <a class="button button-primary" href="/gateway">Enforcement Gateway</a>
+        <a class="button button-secondary" href="/arena">ARES Arena</a>
         <a class="button button-secondary" href="/stats">ML Analytics</a>
         <a class="button button-secondary" href="/search">Corpus Search</a>
         <a class="button button-secondary" href="/reports">Reports</a>
@@ -18,12 +17,5 @@
 </section>
 
 @code {
-    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
-    private string ModuleName => NavigationManager.Uri.Split('/').Last() switch
-    {
-        "attack-corpus"          => "Attack Corpus",
-        "runtime-incidents"      => "Runtime Incidents",
-        "prompt-configurations"  => "Prompt Configurations",
-        _                        => "Settings",
-    };
 }
+

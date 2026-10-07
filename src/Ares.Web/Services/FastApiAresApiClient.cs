@@ -296,6 +296,43 @@ public sealed class FastApiAresApiClient : IAresApiClient
         }
     }
 
+    public async Task<GatewayEnforceResponse> EnforcePromptAsync(GatewayEnforceRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await _http.PostAsJsonAsync("api/gateway/enforce", request, JsonOptions, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<GatewayEnforceResponse>(JsonOptions, cancellationToken)
+                    ?? await _learningFallback.EnforcePromptAsync(request, cancellationToken);
+            }
+            return await _learningFallback.EnforcePromptAsync(request, cancellationToken);
+        }
+        catch
+        {
+            return await _learningFallback.EnforcePromptAsync(request, cancellationToken);
+        }
+    }
+
+    public async Task<GatewayStatusResponse> GetGatewayStatusAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await _http.GetAsync("api/gateway/status", cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<GatewayStatusResponse>(JsonOptions, cancellationToken)
+                    ?? await _learningFallback.GetGatewayStatusAsync(cancellationToken);
+            }
+            return await _learningFallback.GetGatewayStatusAsync(cancellationToken);
+        }
+        catch
+        {
+            return await _learningFallback.GetGatewayStatusAsync(cancellationToken);
+        }
+    }
+
+
 
     private async Task<T> ReadAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
     {

@@ -126,6 +126,18 @@ def _persist_test_run(run: TestRunResponse) -> None:
                 )
                 db.add(db_run)
                 db.flush()
+            else:
+                db_run.status = db_status
+                db_run.configuration = run.configuration.model_dump()
+                db_run.prompt_fingerprint = prompt_hash
+                db_run.created_at = run.created_at
+                db_run.completed_at = run.completed_at
+                db_run.duration_milliseconds = run.duration_ms
+                db_run.token_estimate = run.token_estimate
+                db_run.failure_reason = run.failure_reason
+                db.query(DbFinding).filter_by(test_run_id=run.id).delete()
+                db.query(DbEvidence).filter_by(test_run_id=run.id).delete()
+                db.flush()
 
             if run.analysis:
                 primary_cat = run.configuration.attack_categories[0].value if run.configuration.attack_categories else "direct_prompt_injection"
@@ -265,7 +277,7 @@ def _load_test_run_from_db(test_id: str) -> Optional[TestRunResponse]:
         return None
 
 
-def _load_recent_test_runs_from_db(limit: int = 20) -> List[RecentTestItem]:
+def _load_recent_test_runs_from_db(limit: int = 50) -> List[RecentTestItem]:
     """Retrieve recent test runs from the persistent database."""
     items: List[RecentTestItem] = []
     try:
@@ -455,7 +467,7 @@ async def get_recent_tests() -> List[RecentTestItem]:
     items: List[RecentTestItem] = []
 
     # 1. From persistent database
-    db_items = _load_recent_test_runs_from_db(20)
+    db_items = _load_recent_test_runs_from_db(50)
     for it in db_items:
         seen_ids.add(it.id)
         items.append(it)
@@ -496,7 +508,7 @@ async def get_recent_tests() -> List[RecentTestItem]:
                 status=TestRunStatusEnum.completed,
             ))
 
-    return items[:20]
+    return items[:50]
 
 
 @router.get("/{test_id}", response_model=TestRunResponse)

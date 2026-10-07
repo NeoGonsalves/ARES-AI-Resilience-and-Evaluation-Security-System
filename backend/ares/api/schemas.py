@@ -286,16 +286,20 @@ class HardenRequest(BaseModel):
 
 
 class HardenResponse(BaseModel):
-    hardened_prompt:    str
-    baseline_score:     int
-    hardened_score:     int
-    improvement_points: int
-    strategy_applied:   str
-    token_overhead:     int
-    baseline_tokens:    Optional[int] = None
-    hardened_tokens:    Optional[int] = None
-    efficiency_score:   Optional[float] = None
-    generated_at:       datetime
+    hardened_prompt:     str
+    baseline_score:      int
+    hardened_score:      int
+    improvement_points:  int
+    strategy_applied:    str
+    token_overhead:      int
+    baseline_tokens:     Optional[int] = None
+    hardened_tokens:     Optional[int] = None
+    efficiency_score:    Optional[float] = None
+    provider_used:       Optional[str] = "nvidia"
+    model_used:          Optional[str] = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    ml_model_updated_at: Optional[datetime] = None
+    generated_at:        datetime
+
 
 
 # ---------------------------------------------------------------------------
@@ -346,3 +350,64 @@ class StatsResponse(BaseModel):
     category_breakdown: List[CategoryAccuracy]
     model_name:         str
     generated_at:       datetime
+
+
+# ---------------------------------------------------------------------------
+# Runtime Enforcement Gateway schemas
+# ---------------------------------------------------------------------------
+
+class EnforceActionEnum(str, Enum):
+    allow = "ALLOW"
+    sanitize = "SANITIZE"
+    block = "BLOCK"
+
+
+class EnforceRequest(BaseModel):
+    prompt:           str
+    system_prompt:    Optional[str] = None
+    application_name: str = "ARES Protected Application"
+    correlation_id:   Optional[str] = None
+
+
+class EnforceResponse(BaseModel):
+    action:            EnforceActionEnum
+    risk_score:        int
+    severity:          SeverityEnum
+    matched_technique: Optional[str] = None
+    vector_similarity: Optional[float] = None
+    sanitized_prompt:  Optional[str] = None
+    explanation:       str
+    latency_ms:        float
+    correlation_id:    str
+    timestamp:         datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ChatProxyMessage(BaseModel):
+    role:    str
+    content: str
+
+
+class ChatProxyRequest(BaseModel):
+    model:            str = "groq"
+    messages:         List[ChatProxyMessage]
+    temperature:      float = 0.7
+    application_name: str = "ARES Chat Proxy"
+
+
+class ChatProxyResponse(BaseModel):
+    action_taken:   EnforceActionEnum
+    risk_score:     int
+    content:        str
+    model:          str
+    latency_ms:     float
+    correlation_id: str
+
+
+class GatewayStatusResponse(BaseModel):
+    status:                   str
+    qdrant_points:            int
+    block_threshold:          float
+    sanitize_threshold:       float
+    canary_token_configured:  bool
+    version:                  str = "1.0.0"
+

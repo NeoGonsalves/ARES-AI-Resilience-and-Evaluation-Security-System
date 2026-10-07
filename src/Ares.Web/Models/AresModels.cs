@@ -116,10 +116,21 @@ public sealed record SearchHit(string Id, double Score, string AttackText, strin
     string Source, string Domain, string Severity, string? OperatorApplied);
 public sealed record SearchResponse(string Query, int TotalHits, IReadOnlyList<SearchHit> Hits);
 
-// --- Phase 6: Prompt Hardening ---
 public sealed record HardenRequest(string SystemPrompt, string ApplicationName = "ARES App", string Domain = "general", string? TestId = null, bool OptimizeTokens = true);
-public sealed record HardenResponse(string HardenedPrompt, int BaselineScore, int HardenedScore,
-    int ImprovementPoints, string StrategyApplied, int TokenOverhead, DateTimeOffset GeneratedAt, int? BaselineTokens = null, int? HardenedTokens = null, double? EfficiencyScore = null);
+public sealed record HardenResponse(
+    string HardenedPrompt,
+    int BaselineScore,
+    int HardenedScore,
+    int ImprovementPoints,
+    string StrategyApplied,
+    int TokenOverhead,
+    DateTimeOffset GeneratedAt,
+    int? BaselineTokens = null,
+    int? HardenedTokens = null,
+    double? EfficiencyScore = null,
+    string? ProviderUsed = "nvidia",
+    string? ModelUsed = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    DateTimeOffset? MlModelUpdatedAt = null);
 
 // Qdrant Vector Corpus & RAG Schemas
 public sealed record AttackCorpusPayload(
@@ -284,4 +295,32 @@ public sealed record SubmitChallengeResponse(ChallengeSubmission Submission, boo
 public sealed record CreateOrgAssessmentRequest(OrgAssessment Draft);
 public sealed record CreateChallengeRequest(Challenge Draft);
 public sealed record UpdateChallengeRequest(Challenge Updated);
+
+// Runtime Enforcement Gateway DTOs
+public sealed record GatewayEnforceRequest(
+    string Prompt,
+    string? SystemPrompt = null,
+    string ApplicationName = "ARES Protected Application",
+    string? CorrelationId = null);
+
+public sealed record GatewayEnforceResponse(
+    string Action,
+    int RiskScore,
+    string Severity,
+    string? MatchedTechnique,
+    double? VectorSimilarity,
+    string? SanitizedPrompt,
+    string Explanation,
+    double LatencyMs,
+    string CorrelationId,
+    DateTimeOffset Timestamp);
+
+public sealed record GatewayStatusResponse(
+    string Status,
+    int QdrantPoints,
+    double BlockThreshold,
+    double SanitizeThreshold,
+    bool CanaryTokenConfigured,
+    string Version);
+
 

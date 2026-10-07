@@ -48,4 +48,8 @@ public interface IAresApiClient
     Task<OrgAssessment> CreateOrgAssessmentAsync(CreateOrgAssessmentRequest request, CancellationToken cancellationToken);
     Task<Challenge> CreateChallengeAsync(CreateChallengeRequest request, CancellationToken cancellationToken);
     Task<Challenge> UpdateChallengeAsync(UpdateChallengeRequest request, CancellationToken cancellationToken);
+
+    // ── Runtime Enforcement Gateway ──────────────────────────────────────────
+    Task<GatewayEnforceResponse> EnforcePromptAsync(GatewayEnforceRequest request, CancellationToken cancellationToken);
+    Task<GatewayStatusResponse> GetGatewayStatusAsync(CancellationToken cancellationToken);
 }

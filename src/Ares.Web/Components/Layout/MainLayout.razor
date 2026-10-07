@@ -38,6 +38,16 @@
 </div>
 
 @code {
-    private string PageTitle => NavigationManager.Uri.Contains("arena", StringComparison.OrdinalIgnoreCase) ? "ARES Arena" : "Overview";
+    private string PageTitle => NavigationManager.Uri switch
+    {
+        var u when u.Contains("arena", StringComparison.OrdinalIgnoreCase) => "ARES Arena",
+        var u when u.Contains("attack-corpus", StringComparison.OrdinalIgnoreCase) || u.Contains("search", StringComparison.OrdinalIgnoreCase) => "Attack Corpus",
+        var u when u.Contains("runtime-incidents", StringComparison.OrdinalIgnoreCase) || u.Contains("gateway", StringComparison.OrdinalIgnoreCase) => "Runtime Gateway",
+        var u when u.Contains("prompt-configurations", StringComparison.OrdinalIgnoreCase) || u.Contains("optimizer", StringComparison.OrdinalIgnoreCase) => "Prompt Optimizer",
+        var u when u.Contains("reports", StringComparison.OrdinalIgnoreCase) => "Reports",
+        var u when u.Contains("stats", StringComparison.OrdinalIgnoreCase) => "ML Analytics",
+        var u when u.Contains("settings", StringComparison.OrdinalIgnoreCase) => "Settings",
+        _ => "Overview"
+    };
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 }

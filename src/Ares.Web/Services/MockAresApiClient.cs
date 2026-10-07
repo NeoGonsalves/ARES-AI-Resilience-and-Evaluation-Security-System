@@ -129,6 +129,30 @@ public sealed class MockAresApiClient : IAresApiClient
         return Task.FromResult(new HardenResponse("Hardened mock prompt", 50, 90, 40, "few-shot", 120, DateTimeOffset.UtcNow));
     }
 
+    public Task<GatewayEnforceResponse> EnforcePromptAsync(GatewayEnforceRequest request, CancellationToken cancellationToken)
+    {
+        var isMalicious = request.Prompt.Contains("ignore", StringComparison.OrdinalIgnoreCase)
+            || request.Prompt.Contains("canary", StringComparison.OrdinalIgnoreCase)
+            || request.Prompt.Contains("DAN", StringComparison.OrdinalIgnoreCase);
+
+        var action = isMalicious ? "BLOCK" : "ALLOW";
+        var risk = isMalicious ? 92 : 12;
+        var sev = isMalicious ? "Critical" : "Safe";
+        var tech = isMalicious ? "instruction_override" : "none";
+        var expl = isMalicious ? "Blocked by ARES Runtime Shield: Elevated heuristic pattern detected." : "Clean prompt approved for downstream processing.";
+
+        return Task.FromResult(new GatewayEnforceResponse(
+            action, risk, sev, tech, isMalicious ? 0.88 : 0.15,
+            isMalicious ? null : request.Prompt,
+            expl, 14.2, Guid.NewGuid().ToString("N")[..12], DateTimeOffset.UtcNow));
+    }
+
+    public Task<GatewayStatusResponse> GetGatewayStatusAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new GatewayStatusResponse("ACTIVE", 3695, 0.82, 0.68, true, "1.0.0"));
+    }
+
+
     private async Task<TestRun> RequireRunAsync(string testId, CancellationToken cancellationToken) => await GetTestAsync(testId, cancellationToken) ?? throw new KeyNotFoundException($"Test {testId} was not found.");
 
     private TestRun RequireRun(string testId) { lock (_gate) return _runs.GetValueOrDefault(testId) ?? throw new KeyNotFoundException($"Test {testId} was not found."); }

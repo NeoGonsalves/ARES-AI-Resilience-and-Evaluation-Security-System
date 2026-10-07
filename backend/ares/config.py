@@ -59,5 +59,15 @@ class Settings(BaseSettings):
     retry_max_wait_seconds: float = 4.0
     request_timeout_seconds: float = 30.0
 
+    # API Security & Authentication
+    api_key: str = Field(default="ares-dev-secret-key-42", alias="ARES_API_KEY")
+    auth_enabled: bool = Field(default=False, alias="ARES_AUTH_ENABLED")
+
+    # Runtime Enforcement Gateway
+    gateway_block_threshold: float = Field(default=0.82, alias="GATEWAY_BLOCK_THRESHOLD")
+    gateway_sanitize_threshold: float = Field(default=0.68, alias="GATEWAY_SANITIZE_THRESHOLD")
+    gateway_canary_token: str = Field(default="CANARY_ARES_SECRET_42", alias="GATEWAY_CANARY_TOKEN")
+
 
 settings = Settings()
+
