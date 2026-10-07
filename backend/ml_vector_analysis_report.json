@@ -1,106 +1,106 @@
 {
-  "generated_at": "2026-10-04T11:48:30.587451+00:00",
+  "generated_at": "2026-10-07T17:35:17.358182+00:00",
   "sample_count": 3695,
   "vector_dim": 768,
-  "pairwise_similarity_mean": 0.08081905543804169,
-  "pairwise_similarity_std": 0.11733390390872955,
+  "pairwise_similarity_mean": 0.07629942893981934,
+  "pairwise_similarity_std": 0.14612126350402832,
   "pca_top_3_variance": [
-    0.05001441016793251,
-    0.029909327626228333,
-    0.023559316992759705
+    0.1093292310833931,
+    0.037103038281202316,
+    0.03177926689386368
   ],
-  "pca_cumulative_variance_top_5": 0.14625799655914307,
-  "silhouette_score": 0.041,
+  "pca_cumulative_variance_top_5": 0.23167094588279724,
+  "silhouette_score": 0.0324,
   "category_counts": {
-    "context_smuggling": 1271,
-    "delimiter_confusion": 465,
-    "encoding_tricks": 812,
-    "role_play_hijack": 589,
-    "instruction_override": 558
+    "instruction_override": 888,
+    "role_play_hijack": 997,
+    "context_smuggling": 458,
+    "encoding_tricks": 630,
+    "delimiter_confusion": 722
   },
-  "classifier_name": "LogisticRegression(C=5, balanced) | TF-IDF(word1-2+char3-5, 800feat) + 15-Structural | CV=100.0% (+-0.0%)",
-  "cv_mean_accuracy": 1.0,
-  "cv_std_accuracy": 0.0,
+  "classifier_name": "LogisticRegression(C=5, balanced) | TF-IDF(word1-2+char3-5, 800feat) + 15-Structural | CV=98.8% (+-0.3%)",
+  "cv_mean_accuracy": 0.988362652232747,
+  "cv_std_accuracy": 0.0032701071647075965,
   "classification_report": {
     "context_smuggling": {
-      "precision": 1.0,
+      "precision": 0.9404517453798767,
       "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 1271.0
+      "f1-score": 0.9693121693121693,
+      "support": 458.0
     },
     "delimiter_confusion": {
       "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 465.0
+      "recall": 0.9903047091412742,
+      "f1-score": 0.9951287404314544,
+      "support": 722.0
     },
     "encoding_tricks": {
       "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 812.0
+      "recall": 0.9888888888888889,
+      "f1-score": 0.994413407821229,
+      "support": 630.0
     },
     "instruction_override": {
       "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 558.0
+      "recall": 0.9898648648648649,
+      "f1-score": 0.9949066213921901,
+      "support": 888.0
     },
     "role_play_hijack": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 589.0
+      "precision": 0.9989909182643795,
+      "recall": 0.9929789368104313,
+      "f1-score": 0.9959758551307847,
+      "support": 997.0
     },
-    "accuracy": 1.0,
+    "accuracy": 0.9918809201623816,
     "macro avg": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
+      "precision": 0.9878885327288514,
+      "recall": 0.9924074799410919,
+      "f1-score": 0.9899473588175655,
       "support": 3695.0
     },
     "weighted avg": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
+      "precision": 0.9923466427316833,
+      "recall": 0.9918809201623816,
+      "f1-score": 0.9919819698039282,
       "support": 3695.0
     }
   },
   "confusion_matrix": [
     [
-      1271,
+      458,
       0,
       0,
       0,
       0
     ],
     [
-      0,
-      465,
+      7,
+      715,
       0,
       0,
       0
     ],
     [
+      7,
       0,
-      0,
-      812,
+      623,
       0,
       0
     ],
     [
+      8,
       0,
       0,
-      0,
-      558,
-      0
+      879,
+      1
     ],
     [
+      7,
       0,
       0,
       0,
-      0,
-      589
+      990
     ]
   ],
   "vector_stats": {
@@ -108,47 +108,50 @@
     "sample_count": 3695,
     "vector_dim": 768,
     "category_distribution": {
-      "context_smuggling": 1271,
-      "delimiter_confusion": 465,
-      "encoding_tricks": 812,
-      "role_play_hijack": 589,
-      "instruction_override": 558
+      "instruction_override": 888,
+      "role_play_hijack": 997,
+      "context_smuggling": 458,
+      "encoding_tricks": 630,
+      "delimiter_confusion": 722
     },
-    "pairwise_similarity_mean": 0.08081905543804169,
-    "pairwise_similarity_std": 0.11733390390872955,
+    "pairwise_similarity_mean": 0.07629942893981934,
+    "pairwise_similarity_std": 0.14612126350402832,
     "pca_top_3_variance": [
-      0.05001441016793251,
-      0.029909327626228333,
-      0.023559316992759705
+      0.1093292310833931,
+      0.037103038281202316,
+      0.03177926689386368
     ],
-    "pca_cumulative_variance_top_5": 0.14625799655914307,
-    "silhouette_score": 0.041
+    "pca_cumulative_variance_top_5": 0.23167094588279724,
+    "silhouette_score": 0.0324
   },
   "feature_stats": {
-    "length_mean": 143.53071718538567,
-    "length_std": 30.512998909688328,
-    "length_median": 142.0,
-    "length_min": 47,
-    "length_max": 242,
+    "length_mean": 140.8982408660352,
+    "length_std": 98.92349354280455,
+    "length_median": 134.0,
+    "length_min": 38,
+    "length_max": 2571,
     "category_counts": {
-      "context_smuggling": 1271,
-      "delimiter_confusion": 465,
-      "encoding_tricks": 812,
-      "role_play_hijack": 589,
-      "instruction_override": 558
+      "instruction_override": 888,
+      "role_play_hijack": 997,
+      "context_smuggling": 458,
+      "encoding_tricks": 630,
+      "delimiter_confusion": 722
     },
     "provider_counts": {
-      "unknown": 3695
+      "unknown": 3650,
+      "groq": 40,
+      "nvidia": 5
     },
     "operator_counts": {
-      "none": 3255,
-      "leetspeak": 440
+      "none": 3517,
+      "fake_json": 20,
+      "leetspeak": 158
     }
   },
   "model_performance": {
-    "model_name": "LogisticRegression(C=5, balanced) | TF-IDF(word1-2+char3-5, 800feat) + 15-Structural | CV=100.0% (+-0.0%)",
-    "cv_mean_accuracy": 1.0,
-    "cv_std_accuracy": 0.0,
+    "model_name": "LogisticRegression(C=5, balanced) | TF-IDF(word1-2+char3-5, 800feat) + 15-Structural | CV=98.8% (+-0.3%)",
+    "cv_mean_accuracy": 0.988362652232747,
+    "cv_std_accuracy": 0.0032701071647075965,
     "classes": [
       "context_smuggling",
       "delimiter_confusion",
@@ -158,84 +161,84 @@
     ],
     "classification_report": {
       "context_smuggling": {
-        "precision": 1.0,
+        "precision": 0.9404517453798767,
         "recall": 1.0,
-        "f1-score": 1.0,
-        "support": 1271.0
+        "f1-score": 0.9693121693121693,
+        "support": 458.0
       },
       "delimiter_confusion": {
         "precision": 1.0,
-        "recall": 1.0,
-        "f1-score": 1.0,
-        "support": 465.0
+        "recall": 0.9903047091412742,
+        "f1-score": 0.9951287404314544,
+        "support": 722.0
       },
       "encoding_tricks": {
         "precision": 1.0,
-        "recall": 1.0,
-        "f1-score": 1.0,
-        "support": 812.0
+        "recall": 0.9888888888888889,
+        "f1-score": 0.994413407821229,
+        "support": 630.0
       },
       "instruction_override": {
         "precision": 1.0,
-        "recall": 1.0,
-        "f1-score": 1.0,
-        "support": 558.0
+        "recall": 0.9898648648648649,
+        "f1-score": 0.9949066213921901,
+        "support": 888.0
       },
       "role_play_hijack": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1-score": 1.0,
-        "support": 589.0
+        "precision": 0.9989909182643795,
+        "recall": 0.9929789368104313,
+        "f1-score": 0.9959758551307847,
+        "support": 997.0
       },
-      "accuracy": 1.0,
+      "accuracy": 0.9918809201623816,
       "macro avg": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1-score": 1.0,
+        "precision": 0.9878885327288514,
+        "recall": 0.9924074799410919,
+        "f1-score": 0.9899473588175655,
         "support": 3695.0
       },
       "weighted avg": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1-score": 1.0,
+        "precision": 0.9923466427316833,
+        "recall": 0.9918809201623816,
+        "f1-score": 0.9919819698039282,
         "support": 3695.0
       }
     },
     "confusion_matrix": [
       [
-        1271,
+        458,
         0,
         0,
         0,
         0
       ],
       [
-        0,
-        465,
+        7,
+        715,
         0,
         0,
         0
       ],
       [
+        7,
         0,
-        0,
-        812,
+        623,
         0,
         0
       ],
       [
+        8,
         0,
         0,
-        0,
-        558,
-        0
+        879,
+        1
       ],
       [
+        7,
         0,
         0,
         0,
-        0,
-        589
+        990
       ]
     ]
   }
