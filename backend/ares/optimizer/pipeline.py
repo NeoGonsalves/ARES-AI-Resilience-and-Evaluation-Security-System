@@ -348,6 +348,7 @@ class UserPromptOptimizer:
         embedder: Optional[GeminiEmbedder] = None,
         attack_store: Optional[Any] = None,
         findings_history: Optional[List[Any]] = None,
+        runtime_enforcer: Optional[Any] = None,
     ):
         self.settings = settings or get_settings()
         self.security_detector = security_detector or StructuralAttackDetector(
@@ -371,6 +372,31 @@ class UserPromptOptimizer:
         self.attack_store = attack_store
         self._custom_attack_store = attack_store is not None
         self.findings_history = findings_history
+        self._runtime_enforcer = runtime_enforcer
+
+    def get_runtime_enforcer(self) -> Any:
+        """
+        Lazily initialize and return the attached RuntimeEnforcer gateway engine.
+        Attaches the pre-flight runtime sandbox directly to the optimizer in the background.
+        """
+        if self._runtime_enforcer is None:
+            try:
+                from ares.api.routes.gateway import _shared_enforcer
+                if _shared_enforcer is not None:
+                    self._runtime_enforcer = _shared_enforcer
+            except Exception:
+                pass
+
+        if self._runtime_enforcer is None:
+            try:
+                from ares.gateway.enforcer import RuntimeEnforcer
+                self._runtime_enforcer = RuntimeEnforcer(
+                    settings=self.settings,
+                    structural_detector=self.security_detector,
+                )
+            except Exception as exc:
+                logger.debug("RuntimeEnforcer background initialization deferred: %s", exc)
+        return self._runtime_enforcer
 
     async def _retrieve_threat_context(
         self,
@@ -378,11 +404,12 @@ class UserPromptOptimizer:
         intent: PromptIntent,
         sec_result: Any,
         domain: Optional[str] = None,
+        gateway_decision: Optional[Any] = None,
     ) -> List[str]:
         """
-        Retrieve matched adversarial attack techniques / categories from the red-team
-        Qdrant corpus, structural detections, or breach findings history to close the
-        Red-Team -> Optimizer loop.
+        Retrieve matched adversarial attack techniques / categories from the runtime
+        gateway sandbox, red-team Qdrant corpus, structural detections, or breach findings
+        history to close the Red-Team -> Optimizer loop.
         """
         threats: List[str] = []
 
@@ -472,31 +499,63 @@ class UserPromptOptimizer:
         orig_tokens = _estimate_tokens(user_prompt)
 
         # ---------------------------------------------------------------------
-        # Step 1: Security Gate (Structural Attack Detection)
+        # Step 1: Pre-flight Runtime Gateway Sandbox & Security Gate
         # ---------------------------------------------------------------------
+        gateway_decision = None
+        gateway_blocked = False
+        prompt_to_optimize = user_prompt
+        enforcer = self.get_runtime_enforcer()
+
+        if enforcer is not None and not allow_harmful:
+            try:
+                from ares.api.schemas import EnforceRequest
+                enforce_req = EnforceRequest(
+                    prompt=user_prompt,
+                    application_name=f"ARES Prompt Optimizer ({domain or 'default'})",
+                )
+                gateway_decision = await enforcer.enforce(enforce_req)
+                action_val = getattr(getattr(gateway_decision, "action", None), "value", str(getattr(gateway_decision, "action", "")))
+                risk_val = getattr(gateway_decision, "risk_score", 0) or 0
+                if action_val == "BLOCK" or risk_val >= 85:
+                    gateway_blocked = True
+                elif action_val == "SANITIZE":
+                    if getattr(gateway_decision, "sanitized_prompt", None):
+                        prompt_to_optimize = gateway_decision.sanitized_prompt
+            except Exception as gw_err:
+                logger.warning("Runtime gateway sandbox enforcement error (%s); falling back to structural detector", gw_err)
+
+        # Deterministic Layer-0 structural attack detection fallback
         sec_result = self.security_detector.detect(
             user_prompt,
             canary_token=self.settings.gateway_canary_token,
         )
-        is_blocked = (sec_result.decision in (Decision.BLOCK, Decision.CHALLENGE)) and not allow_harmful
+        is_blocked = (gateway_blocked or sec_result.decision in (Decision.BLOCK, Decision.CHALLENGE)) and not allow_harmful
 
         if is_blocked:
             elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
             first_match = sec_result.detections[0] if sec_result.detections else None
-            violation_msg = (
-                f"Blocked by Security Gate: {first_match.description}"
-                if first_match
-                else "Blocked: Structural prompt injection detected"
-            )
-            blocked_threats = [
-                str(
-                    getattr(d, "category", None)
-                    or getattr(getattr(d, "attack_type", None), "value", None)
-                    or getattr(d, "pattern_name", None)
-                    or getattr(d, "rule_id", "Prompt Injection")
-                )
-                for d in (sec_result.detections or [])[:3]
-            ] or ["Structural Prompt Injection"]
+            if gateway_decision and getattr(gateway_decision, "explanation", None):
+                violation_msg = f"Blocked by Security Gate: {gateway_decision.explanation}"
+                risk_score_norm = round(getattr(gateway_decision, "risk_score", 90) / 100.0, 2)
+                tech = getattr(gateway_decision, "matched_technique", None) or "Adversarial Injection"
+                blocked_threats = [str(tech)]
+            elif first_match:
+                violation_msg = f"Blocked by Security Gate: {first_match.description}"
+                risk_score_norm = round(sec_result.total_confidence, 2)
+                blocked_threats = [
+                    str(
+                        getattr(d, "category", None)
+                        or getattr(getattr(d, "attack_type", None), "value", None)
+                        or getattr(d, "pattern_name", None)
+                        or getattr(d, "rule_id", "Prompt Injection")
+                    )
+                    for d in (sec_result.detections or [])[:3]
+                ] or ["Structural Prompt Injection"]
+            else:
+                violation_msg = "Blocked by Security Gate: Structural prompt injection detected"
+                risk_score_norm = round(sec_result.total_confidence, 2)
+                blocked_threats = ["Structural Prompt Injection"]
+
             return OptimizedPromptResult(
                 status=OptimizationStatus.BLOCKED_SECURITY,
                 original_prompt=user_prompt,
@@ -512,7 +571,7 @@ class UserPromptOptimizer:
                 verification_passed=False,
                 mitigated_threats=blocked_threats,
                 security_verdict="BLOCKED_ADVERSARIAL_PAYLOAD",
-                security_risk_score=round(sec_result.total_confidence, 2),
+                security_risk_score=max(0.85, risk_score_norm),
                 latency_ms=elapsed_ms,
                 exemplars_used=0,
                 reasoning=violation_msg,
@@ -521,7 +580,7 @@ class UserPromptOptimizer:
         # ---------------------------------------------------------------------
         # Step 2: Intent Classification & Directive Resolution
         # ---------------------------------------------------------------------
-        intent_res = self.classifier.predict(user_prompt)
+        intent_res = self.classifier.predict(prompt_to_optimize)
         intent = intent_res.intent
         directive = intent_res.directive
 
@@ -532,7 +591,7 @@ class UserPromptOptimizer:
         few_shot_block = ""
         try:
             exemplars = await self.exemplar_store.search_exemplars(
-                query_prompt=user_prompt,
+                query_prompt=prompt_to_optimize,
                 intent=intent,
                 domain=domain,
                 limit=2,
@@ -546,6 +605,7 @@ class UserPromptOptimizer:
             intent=intent,
             sec_result=sec_result,
             domain=domain,
+            gateway_decision=gateway_decision,
         )
 
         # ---------------------------------------------------------------------
@@ -582,7 +642,7 @@ class UserPromptOptimizer:
         user_content_parts = []
         if few_shot_block:
             user_content_parts.append(few_shot_block)
-        user_content_parts.append(f"ORIGINAL UNOPTIMIZED PROMPT:\n{user_prompt}\n\nREWRITTEN OPTIMIZED PROMPT:")
+        user_content_parts.append(f"ORIGINAL UNOPTIMIZED PROMPT:\n{prompt_to_optimize}\n\nREWRITTEN OPTIMIZED PROMPT:")
         user_message_text = "\n\n".join(user_content_parts)
 
         messages = [
@@ -747,6 +807,16 @@ class UserPromptOptimizer:
             except Exception:
                 pass
 
+        sec_verdict = "CLEAN_VERIFIED"
+        action_str = getattr(getattr(gateway_decision, "action", None), "value", str(getattr(gateway_decision, "action", ""))) if gateway_decision else ""
+        if action_str == "SANITIZE":
+            sec_verdict = "SANITIZED_BOUNDARY_ISOLATED"
+
+        if action_str == "ALLOW" or not gateway_decision:
+            gw_risk = 0.0
+        else:
+            gw_risk = (getattr(gateway_decision, "risk_score", 0) or 0) / 100.0
+
         return OptimizedPromptResult(
             status=status,
             original_prompt=user_prompt,
@@ -761,8 +831,8 @@ class UserPromptOptimizer:
             target_fidelity=effective_target_fidelity,
             verification_passed=verification_passed,
             mitigated_threats=mitigated_threats,
-            security_verdict="CLEAN_VERIFIED",
-            security_risk_score=round(sec_result.total_confidence, 2),
+            security_verdict=sec_verdict,
+            security_risk_score=round(max(sec_result.total_confidence, gw_risk), 2),
             latency_ms=elapsed_ms,
             exemplars_used=len(exemplars),
             reasoning=reasoning,
