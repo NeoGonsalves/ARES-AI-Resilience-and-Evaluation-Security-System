@@ -91,6 +91,55 @@ ARES is an enterprise-grade AI security gateway, resilience testing engine, and 
 
 ---
 
+## ⚡ Unified Terminal Launching Engine
+
+ARES features an integrated cross-platform launching engine (`launch.py` and native PowerShell companion `launch.ps1`) for single-command orchestration, port management, health probing, and graceful Ctrl+C teardown.
+
+### Quick Launch Commands
+
+```bash
+# Launch interactive terminal launcher menu
+python launch.py
+# Or on Windows PowerShell:
+.\launch.ps1
+
+# Launch both Frontend (.NET 8 Blazor) and Backend (FastAPI) concurrently
+python launch.py both
+.\launch.ps1 both
+
+# Launch Backend only (FastAPI on http://127.0.0.1:8000)
+python launch.py backend
+.\launch.ps1 backend
+
+# Launch Frontend only (Blazor Server on http://localhost:5149)
+python launch.py frontend
+.\launch.ps1 frontend
+
+# Launch Full Stack (Frontend + Backend + LoRA Inference Server on :11435)
+python launch.py all
+.\launch.ps1 all
+
+# Launch LoRA Inference Server only
+python launch.py lora
+
+# Check port status and active PIDs
+python launch.py status
+.\launch.ps1 status
+
+# Free all ARES ports (terminate orphaned processes holding 8000, 5149, or 11435)
+python launch.py clean
+.\launch.ps1 clean
+```
+
+### Key Launcher Features
+- **Concurrent Execution & Multiplexed Logging**: Runs frontend and backend in unified terminal stream with colored, timestamped service tags (`[BACKEND]`, `[FRONTEND]`, `[LORA]`).
+- **Readiness Probing**: Automatically probes `http://127.0.0.1:8000/health` on startup, verifying database connectivity and vector stores before outputting a clickable service dashboard card.
+- **Clean Process Lifecycle**: Handles SIGINT/Ctrl+C signals cleanly and terminates entire child process trees, preventing orphaned uvicorn or dotnet processes from blocking development ports.
+- **Automatic Port Conflict Resolution**: Automatically detects and frees ports `8000`, `5149`, and `11435` before starting new instances.
+- **Environment Autodetection**: Automatically locates virtual environments (`venv`, `.venv`), sets `PYTHONPATH=backend`, and detects the .NET 8.0 SDK.
+
+---
+
 ## 🚀 Teammate Quickstart: Running on Any Machine
 
 ARES is engineered to be **fully operational regardless of local GPU availability**. Choose the setup that matches your environment:
@@ -124,21 +173,13 @@ ARES is engineered to be **fully operational regardless of local GPU availabilit
    EXECUTION_PAYLOAD_ENCRYPTION_KEY=your-fernet-key-here
    ```
 
-3. **Start Backend**:
+3. **Launch Stack**:
    ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: .\venv\Scripts\Activate.ps1
-   pip install -r requirements.txt
-   python main.py
+   python launch.py both
+   # Or on Windows: .\launch.ps1 both
    ```
-   Backend API runs at: `http://localhost:8000` (Docs: `http://localhost:8000/docs`)
-
-4. **Start Frontend**:
-   ```bash
-   dotnet run --project src/Ares.Web
-   ```
-   Web UI runs at: `http://localhost:5000`
+   Backend API runs at `http://localhost:8000` (Docs: `http://localhost:8000/docs`)  
+   Web Console runs at `http://localhost:5149`
 
 ---
 
