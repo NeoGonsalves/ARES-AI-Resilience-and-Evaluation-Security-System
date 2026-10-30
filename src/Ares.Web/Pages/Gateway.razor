@@ -3,16 +3,16 @@
 @implements IDisposable
 @inject IAresApiClient Api
 
-<PageTitle>Runtime Enforcement Gateway · ARES</PageTitle>
+<PageTitle>Runtime Incidents &amp; Security Telemetry · ARES</PageTitle>
 
 <section class="page-intro arena-intro">
     <div>
-        <p class="eyebrow">Zero-Trust Edge Defense</p>
-        <h1>Runtime Enforcement Gateway</h1>
-        <p>Real-time prompt firewall operating in front of production LLMs. Enforces sub-25ms semantic vector defenses, canary leak prevention, and automated containment.</p>
+        <p class="eyebrow">Automated Edge Defense &amp; Monitoring</p>
+        <h1>Runtime Incidents &amp; Edge Telemetry</h1>
+        <p>Continuous background prompt firewall operating across production LLM endpoints. Enforces sub-25ms semantic vector defenses, canary leak prevention, and automated containment without manual intervention.</p>
     </div>
     <div class="intro-meta">
-        <span>Gateway Status</span>
+        <span>Background Monitor</span>
         @if (_status is not null)
         {
             <strong style="color:#10b981;">● @(_status.Status.ToUpperInvariant())</strong>
@@ -59,148 +59,19 @@
     </article>
 </section>
 
-<!-- Interactive Enforcement Studio -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;margin-top:1.5rem;">
-    <!-- Left: Probe Input Form -->
-    <section class="surface-card">
-        <div class="section-heading compact">
-            <div>
-                <p class="eyebrow">Live Guardrail Inspector</p>
-                <h2>Probe Gateway Firewall</h2>
-            </div>
-        </div>
-
-        <!-- Sample Presets -->
-        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin:0.75rem 0;">
-            <button class="button button-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" @onclick="LoadCleanSample">
-                ✓ Clean Prompt
-            </button>
-            <button class="button button-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" @onclick="LoadJailbreakSample">
-                ⚠️ Injection Attack
-            </button>
-            <button class="button button-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" @onclick="LoadCanarySample">
-                🚨 Canary Exfiltration
-            </button>
-            <button class="button button-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" @onclick="LoadSmugglingSample">
-                🛡️ Context Smuggling
-            </button>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:1rem;">
-            <div>
-                <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.35rem;">Inbound User Prompt</label>
-                <textarea class="search-input" rows="6" style="width:100%;font-family:monospace;font-size:0.85rem;line-height:1.45;resize:vertical;"
-                          @bind="_prompt" placeholder="Enter prompt to evaluate through the gateway..."></textarea>
-            </div>
-
-            <div>
-                <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.35rem;">Protected Application</label>
-                <input class="search-input" style="width:100%;" @bind="_appName" placeholder="e.g. Core Customer Chatbot" />
-            </div>
-
-            @if (!string.IsNullOrEmpty(_errorMessage))
-            {
-                <div style="padding:0.75rem;background:rgba(239,68,68,0.15);border:1px solid #ef4444;border-radius:6px;color:#fca5a5;font-size:0.85rem;">
-                    ⚠️ @_errorMessage
-                </div>
-            }
-
-            <button class="button button-primary" style="margin-top:0.5rem;" disabled="@_isEnforcing" @onclick="EnforcePromptAsync">
-                @if (_isEnforcing)
-                {
-                    <span>Inspecting via Qdrant Vector Shield…</span>
-                }
-                else
-                {
-                    <span>🛡️ Inspect &amp; Enforce Prompt</span>
-                }
-            </button>
-        </div>
-    </section>
-
-    <!-- Right: Decision Verdict Card -->
-    <section class="surface-card">
-        <div class="section-heading compact">
-            <div>
-                <p class="eyebrow">Zero-Trust Verdict</p>
-                <h2>Gateway Enforcement Decision</h2>
-            </div>
-            @if (_enforceResult is not null)
-            {
-                <span class="subtle-code">Latency: @_enforceResult.LatencyMs.ToString("F1") ms</span>
-            }
-        </div>
-
-        @if (_isEnforcing)
-        {
-            <div style="padding:3.5rem 1rem;text-align:center;">
-                <LoadingState Message="Executing multi-tier inspection: heuristics → canary → vector match…" />
-            </div>
-        }
-        else if (_enforceResult is not null)
-        {
-            <!-- Decision Banner -->
-            <div style="margin:1rem 0;padding:1rem;border-radius:8px;display:flex;align-items:center;justify-content:space-between;border:1px solid;@GetDecisionStyle(_enforceResult.Action)">
-                <div>
-                    <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;display:block;opacity:0.8;">Action Taken</span>
-                    <strong style="font-size:1.5rem;letter-spacing:0.03em;">@_enforceResult.Action</strong>
-                </div>
-                <div style="text-align:right;">
-                    <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;display:block;opacity:0.8;">Risk Score</span>
-                    <strong style="font-size:1.5rem;">@_enforceResult.RiskScore / 100</strong>
-                </div>
-            </div>
-
-            <!-- Detail Grid -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
-                <div style="padding:0.6rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;">
-                    <p class="eyebrow" style="margin:0 0 0.2rem 0;">Vector Cosine Similarity</p>
-                    <p style="font-size:1.1rem;font-weight:700;margin:0;color:#f8fafc;">
-                        @(_enforceResult.VectorSimilarity?.ToString("F3") ?? "0.000")
-                    </p>
-                </div>
-                <div style="padding:0.6rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;">
-                    <p class="eyebrow" style="margin:0 0 0.2rem 0;">Matched Technique</p>
-                    <p style="font-size:0.95rem;font-weight:600;margin:0;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                        @(_enforceResult.MatchedTechnique ?? "None (Clean)")
-                    </p>
-                </div>
-            </div>
-
-            <!-- Explanation Box -->
-            <div style="padding:0.75rem;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:6px;margin-bottom:1rem;font-size:0.85rem;line-height:1.45;">
-                <strong style="color:#94a3b8;">Explanation:</strong> @_enforceResult.Explanation
-            </div>
-
-            @if (!string.IsNullOrEmpty(_enforceResult.SanitizedPrompt) && _enforceResult.Action == "SANITIZE")
-            {
-                <div>
-                    <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:0.35rem;">Sanitized Inbound Payload (<small style="color:#f59e0b;">Boundary Isolated</small>)</label>
-                    <textarea readonly rows="4" class="search-input" style="width:100%;font-family:monospace;font-size:0.82rem;line-height:1.4;background:rgba(0,0,0,0.3);color:#fbbf24;border-color:rgba(245,158,11,0.3);resize:vertical;">@_enforceResult.SanitizedPrompt</textarea>
-                </div>
-            }
-        }
-        else
-        {
-            <div style="padding:4rem 1rem;text-align:center;color:rgba(255,255,255,0.4);">
-                <p style="font-size:2rem;margin:0 0 0.5rem 0;">🛡️</p>
-                <p style="font-weight:600;margin:0 0 0.25rem 0;color:rgba(255,255,255,0.7);">Enforcement Guard Standby</p>
-                <p style="font-size:0.85rem;max-width:320px;margin:0 auto;">
-                    Select an attack preset or enter a prompt on the left, then click <strong>Inspect &amp; Enforce</strong> to execute the gateway pipeline.
-                </p>
-            </div>
-        }
-    </section>
-</div>
-
-<!-- Incident Audit Feed -->
+<!-- Incident Audit Feed (Primary Focus) -->
 <section class="surface-card" style="margin-top:1.5rem;">
     <div class="section-heading compact">
         <div>
             <p class="eyebrow">Real-Time Event Stream</p>
             <h2>Production Incident Audit Log</h2>
         </div>
-        <button class="text-button" @onclick="LoadIncidentsAsync">Refresh Feed</button>
+        <div style="display:flex;gap:0.75rem;align-items:center;">
+            <button class="text-button" @onclick="LoadIncidentsAsync">Refresh Feed</button>
+            <button class="button button-secondary" style="font-size:0.8rem;padding:0.3rem 0.7rem;" @onclick="ToggleDiagnostics">
+                @(_showDiagnostics ? "Hide Diagnostics Probe ▲" : "Interactive Diagnostics Probe ▼")
+            </button>
+        </div>
     </div>
 
     @if (_incidents is null)
@@ -211,7 +82,7 @@
     }
     else if (_incidents.Count == 0)
     {
-        <p style="padding:1.5rem;text-align:center;color:rgba(255,255,255,0.5);">No recent security violations detected.</p>
+        <p style="padding:1.5rem;text-align:center;color:rgba(255,255,255,0.5);">No recent security violations detected. Background gateway is operating normally.</p>
     }
     else
     {
@@ -253,11 +124,151 @@
     }
 </section>
 
+<!-- Collapsible Interactive Enforcement Diagnostics Probe -->
+@if (_showDiagnostics)
+{
+    <section class="surface-card" style="margin-top:1.5rem;border-color:rgba(56,189,248,0.3);background:rgba(15,23,42,0.6);">
+        <div class="section-heading compact" style="margin-bottom:1rem;">
+            <div>
+                <p class="eyebrow" style="color:#38bdf8;">Developer Diagnostics Sandbox</p>
+                <h2>Manual Gateway Firewall Probe</h2>
+                <p style="font-size:0.85rem;color:#94a3b8;margin-top:0.25rem;">
+                    The runtime gateway protects production LLMs in the background automatically. Use this probe to manually test novel jailbreak vectors, verify cosine similarity thresholds, and inspect boundary sanitization.
+                </p>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+            <!-- Left: Probe Input Form -->
+            <div>
+                <!-- Sample Presets -->
+                <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                    <button class="button button-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" @onclick="LoadCleanSample">
+                        ✓ Clean Prompt
+                    </button>
+                    <button class="button button-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" @onclick="LoadJailbreakSample">
+                        ⚠️ Injection Attack
+                    </button>
+                    <button class="button button-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" @onclick="LoadCanarySample">
+                        🚨 Canary Exfiltration
+                    </button>
+                    <button class="button button-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" @onclick="LoadSmugglingSample">
+                        🛡️ Context Smuggling
+                    </button>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:1rem;">
+                    <div>
+                        <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.35rem;">Inbound User Prompt</label>
+                        <textarea class="search-input" rows="6" style="width:100%;font-family:monospace;font-size:0.85rem;line-height:1.45;resize:vertical;"
+                                  @bind="_prompt" placeholder="Enter prompt to evaluate through the gateway..."></textarea>
+                    </div>
+
+                    <div>
+                        <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.35rem;">Protected Application</label>
+                        <input class="search-input" style="width:100%;" @bind="_appName" placeholder="e.g. Core Customer Chatbot" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div style="padding:0.75rem;background:rgba(239,68,68,0.15);border:1px solid #ef4444;border-radius:6px;color:#fca5a5;font-size:0.85rem;">
+                            ⚠️ @_errorMessage
+                        </div>
+                    }
+
+                    <button class="button button-primary" style="margin-top:0.5rem;" disabled="@_isEnforcing" @onclick="EnforcePromptAsync">
+                        @if (_isEnforcing)
+                        {
+                            <span>Inspecting via Qdrant Vector Shield…</span>
+                        }
+                        else
+                        {
+                            <span>🛡️ Inspect &amp; Enforce Prompt</span>
+                        }
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: Decision Verdict Card -->
+            <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                    <h3 style="font-size:1rem;margin:0;">Probe Verdict</h3>
+                    @if (_enforceResult is not null)
+                    {
+                        <span class="subtle-code">Latency: @_enforceResult.LatencyMs.ToString("F1") ms</span>
+                    }
+                </div>
+
+                @if (_isEnforcing)
+                {
+                    <div style="padding:3.5rem 1rem;text-align:center;">
+                        <LoadingState Message="Executing multi-tier inspection: heuristics → canary → vector match…" />
+                    </div>
+                }
+                else if (_enforceResult is not null)
+                {
+                    <!-- Decision Banner -->
+                    <div style="margin:0 0 1rem 0;padding:1rem;border-radius:8px;display:flex;align-items:center;justify-content:space-between;border:1px solid;@GetDecisionStyle(_enforceResult.Action)">
+                        <div>
+                            <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;display:block;opacity:0.8;">Action Taken</span>
+                            <strong style="font-size:1.5rem;letter-spacing:0.03em;">@_enforceResult.Action</strong>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;display:block;opacity:0.8;">Risk Score</span>
+                            <strong style="font-size:1.5rem;">@_enforceResult.RiskScore / 100</strong>
+                        </div>
+                    </div>
+
+                    <!-- Detail Grid -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+                        <div style="padding:0.6rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;">
+                            <p class="eyebrow" style="margin:0 0 0.2rem 0;">Vector Cosine Similarity</p>
+                            <p style="font-size:1.1rem;font-weight:700;margin:0;color:#f8fafc;">
+                                @(_enforceResult.VectorSimilarity?.ToString("F3") ?? "0.000")
+                            </p>
+                        </div>
+                        <div style="padding:0.6rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;">
+                            <p class="eyebrow" style="margin:0 0 0.2rem 0;">Matched Technique</p>
+                            <p style="font-size:0.95rem;font-weight:600;margin:0;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                @(_enforceResult.MatchedTechnique ?? "None (Clean)")
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Explanation Box -->
+                    <div style="padding:0.75rem;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:6px;margin-bottom:1rem;font-size:0.85rem;line-height:1.45;">
+                        <strong style="color:#94a3b8;">Explanation:</strong> @_enforceResult.Explanation
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_enforceResult.SanitizedPrompt) && _enforceResult.Action == "SANITIZE")
+                    {
+                        <div>
+                            <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:0.35rem;">Sanitized Inbound Payload (<small style="color:#f59e0b;">Boundary Isolated</small>)</label>
+                            <textarea readonly rows="4" class="search-input" style="width:100%;font-family:monospace;font-size:0.82rem;line-height:1.4;background:rgba(0,0,0,0.3);color:#fbbf24;border-color:rgba(245,158,11,0.3);resize:vertical;">@_enforceResult.SanitizedPrompt</textarea>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div style="padding:4rem 1rem;text-align:center;color:rgba(255,255,255,0.4);">
+                        <p style="font-size:2rem;margin:0 0 0.5rem 0;">🛡️</p>
+                        <p style="font-weight:600;margin:0 0 0.25rem 0;color:rgba(255,255,255,0.7);">Diagnostics Probe Standby</p>
+                        <p style="font-size:0.85rem;max-width:320px;margin:0 auto;">
+                            Select an attack preset or enter a prompt on the left, then click <strong>Inspect &amp; Enforce</strong> to execute the gateway pipeline.
+                        </p>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+}
+
 @code {
     private readonly CancellationTokenSource _cts = new();
     private string _prompt = "How do I calculate quarterly EBITDA variance in accordance with standard corporate accounting?";
     private string _appName = "ARES Enterprise Core";
     private bool _isEnforcing;
+    private bool _showDiagnostics = false;
     private string? _errorMessage;
     private string? _gatewayError;
     private GatewayStatusResponse? _status;
@@ -267,6 +278,11 @@
     protected override async Task OnInitializedAsync()
     {
         await Task.WhenAll(LoadStatusAsync(), LoadIncidentsAsync());
+    }
+
+    private void ToggleDiagnostics()
+    {
+        _showDiagnostics = !_showDiagnostics;
     }
 
     private async Task LoadStatusAsync()
