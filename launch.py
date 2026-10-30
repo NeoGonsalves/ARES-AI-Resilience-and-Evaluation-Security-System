@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import shutil
 import signal
 import socket
@@ -241,11 +240,16 @@ def get_pids_for_port(port: int) -> list[int]:
                 timeout=5,
             )
             if res.returncode == 0:
-                pattern = re.compile(rf":{port}\s+.*?\s+LISTENING\s+(\d+)", re.IGNORECASE)
                 for line in res.stdout.splitlines():
-                    match = pattern.search(line)
-                    if match:
-                        pids.append(int(match.group(1)))
+                    tokens = line.strip().split()
+                    # Expect: Proto  Local_Address  Foreign_Address  State  PID
+                    if len(tokens) >= 5 and tokens[0].upper() == "TCP":
+                        local_addr = tokens[1]
+                        state = tokens[3].upper()
+                        pid_str = tokens[4]
+                        # Match :port at end of local address (e.g., 0.0.0.0:8000, 127.0.0.1:8000, [::]:8000)
+                        if (local_addr.endswith(f":{port}") or local_addr.endswith(f"]:{port}")) and state == "LISTENING" and pid_str.isdigit():
+                            pids.append(int(pid_str))
         except Exception:
             pass
     else:
@@ -267,6 +271,49 @@ def get_pids_for_port(port: int) -> list[int]:
     return sorted(set(pids))
 
 
+def get_child_pids(parent_pid: int) -> list[int]:
+    """Find all direct child process IDs for a given parent PID."""
+    if parent_pid <= 0:
+        return []
+    pids: list[int] = []
+    if sys.platform == "win32":
+        try:
+            res = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    f"Get-CimInstance Win32_Process -Filter 'ParentProcessId = {parent_pid}' | Select-Object -ExpandProperty ProcessId",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    val = line.strip()
+                    if val.isdigit():
+                        pids.append(int(val))
+        except Exception:
+            pass
+    else:
+        try:
+            res = subprocess.run(
+                ["pgrep", "-P", str(parent_pid)],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    val = line.strip()
+                    if val.isdigit():
+                        pids.append(int(val))
+        except Exception:
+            pass
+    return sorted(set(pids))
+
+
 def kill_process_tree(pid: int) -> bool:
     """Forcefully terminate a process and all of its child processes."""
     if pid <= 0:
@@ -284,7 +331,11 @@ def kill_process_tree(pid: int) -> bool:
             return False
     else:
         try:
-            os.killpg(os.getpgid(pid), signal.SIGKILL)
+            pgid = os.getpgid(pid)
+            if pgid != os.getpgrp():
+                os.killpg(pgid, signal.SIGKILL)
+            else:
+                os.kill(pid, signal.SIGKILL)
             return True
         except Exception:
             try:
@@ -368,6 +419,7 @@ class ProcessManager:
         self.processes: list[tuple[ServiceTask, subprocess.Popen]] = []
         self._threads: list[threading.Thread] = []
         self._stopping = threading.Event()
+        self._stopped = False
         self._lock = threading.Lock()
 
     def start_service(self, task: ServiceTask) -> subprocess.Popen:
@@ -422,37 +474,57 @@ class ProcessManager:
 
     def stop_all(self, ports: list[int] | None = None) -> None:
         """Gracefully stop all child processes without leaving orphans."""
-        self._stopping.set()
-        log_message("ARES", "Initiating shutdown of all running processes...", Colors.BRIGHT_YELLOW)
-
         with self._lock:
+            if self._stopped:
+                return
+            self._stopped = True
+            self._stopping.set()
             active_procs = list(self.processes)
 
-        # Step 1: Send termination signal
+        log_message("ARES", "Initiating shutdown of all running processes...", Colors.BRIGHT_YELLOW)
+
+        # Pre-collect all descendant child PIDs while root processes are still alive
+        pids_to_kill: set[int] = set()
+        for _, proc in active_procs:
+            if proc.pid:
+                pids_to_kill.add(proc.pid)
+                for child_pid in get_child_pids(proc.pid):
+                    pids_to_kill.add(child_pid)
+
+        # Step 1: Send graceful termination signal to process trees
         for task, proc in active_procs:
             if proc.poll() is None:
                 log_message(task.tag, f"Stopping {task.name} (PID: {proc.pid})...", task.color)
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
+                if sys.platform == "win32":
+                    try:
+                        # Process was spawned with CREATE_NEW_PROCESS_GROUP
+                        proc.send_signal(signal.CTRL_BREAK_EVENT)
+                    except Exception:
+                        try:
+                            # Attempt graceful taskkill without /F first
+                            subprocess.run(["taskkill", "/T", "/PID", str(proc.pid)], capture_output=True, timeout=2)
+                        except Exception:
+                            pass
+                else:
+                    try:
+                        pgid = os.getpgid(proc.pid)
+                        if pgid != os.getpgrp():
+                            os.killpg(pgid, signal.SIGTERM)
+                        else:
+                            os.kill(proc.pid, signal.SIGTERM)
+                    except Exception:
+                        pass
 
         # Step 2: Wait briefly for clean termination
         time.sleep(1.0)
 
-        # Step 3: Forcefully kill remaining processes and their subtrees
-        for task, proc in active_procs:
-            if proc.poll() is None:
-                log_message(task.tag, f"Force-terminating process tree for PID {proc.pid}...", Colors.RED)
-                kill_process_tree(proc.pid)
+        # Step 3: Forcefully kill all collected process trees and child PIDs
+        for pid in pids_to_kill:
+            kill_process_tree(pid)
 
         # Step 4: Ensure target ports are completely free
         if ports:
-            for port in ports:
-                pids = get_pids_for_port(port)
-                for pid in pids:
-                    log_message("CLEAN", f"Releasing port {port} (killing PID {pid})...", Colors.YELLOW)
-                    kill_process_tree(pid)
+            clean_ports(ports, verbose=False)
 
         log_message("ARES", "All processes terminated cleanly. Ports released.", Colors.BRIGHT_GREEN)
 
@@ -498,7 +570,7 @@ def probe_backend_health(
                 health_url,
                 headers={"User-Agent": "ARES-Terminal-Launcher/1.0", "Accept": "application/json"},
             )
-            with urllib.request.urlopen(req, timeout=7.0) as resp:
+            with urllib.request.urlopen(req, timeout=2.0) as resp:
                 if resp.status in (200, 201):
                     elapsed = round(time.time() - start_time, 2)
                     log_message("HEALTH", f"Backend responded in {elapsed}s (HTTP {resp.status})", Colors.BRIGHT_GREEN)
@@ -678,6 +750,10 @@ def build_service_tasks(
                 "to run the Ares.Web Blazor frontend."
             )
 
+        frontend_env = child_env.copy()
+        frontend_env["Ares__ApiBaseUrl"] = f"http://127.0.0.1:{backend_port}"
+        frontend_env["ASPNETCORE_URLS"] = f"http://localhost:{frontend_port};http://127.0.0.1:{frontend_port}"
+
         frontend_cmd = [
             str(env_info.dotnet_path),
             "run",
@@ -694,7 +770,7 @@ def build_service_tasks(
                 color=Colors.BRIGHT_MAGENTA,
                 command=frontend_cmd,
                 cwd=env_info.repo_root,
-                env=child_env,
+                env=frontend_env,
                 port=frontend_port,
                 health_url=f"http://localhost:{frontend_port}",
             )
@@ -753,6 +829,15 @@ def launch_engine(
         if auto_clean_ports:
             log_message("CLEAN", f"Cleaning existing processes on port(s): {occupied_ports}...", Colors.YELLOW)
             clean_ports(occupied_ports)
+            still_occupied = [p for p in target_ports if is_port_in_use(p)]
+            if still_occupied:
+                log_message(
+                    "ERROR",
+                    f"Port(s) {still_occupied} could not be freed after cleanup. "
+                    "Aborting launch to avoid port collision.",
+                    Colors.RED,
+                )
+                return 1
         else:
             log_message(
                 "ERROR",

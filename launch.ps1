@@ -41,10 +41,18 @@ param (
     [ValidateSet("both", "backend", "frontend", "all", "lora", "status", "clean", "kill", "exit")]
     [string]$Target,
 
+    [Alias("bp", "backend-port")]
     [int]$BackendPort = 8000,
+
+    [Alias("fp", "frontend-port")]
     [int]$FrontendPort = 5149,
+
+    [Alias("lp", "lora-port")]
     [int]$LoraPort = 11435,
+
+    [Alias("host")]
     [string]$HostAddress = "127.0.0.1",
+
     [switch]$NoReload,
     [switch]$SkipHealthCheck,
     [switch]$NoColor,
@@ -66,6 +74,16 @@ $PythonCandidates = @(
 $SelectedPython = $null
 foreach ($Candidate in $PythonCandidates) {
     if (Test-Path $Candidate) {
+        # Check if candidate can run and load modules cleanly
+        try {
+            $testOut = & $Candidate -c "import sys, ssl; print('OK')" 2>$null
+            if ($LASTEXITCODE -eq 0 -and $testOut -match "OK") {
+                $SelectedPython = $Candidate
+                break
+            }
+        } catch {}
+
+        # If DLL or execution issue occurs, inspect pyvenv.cfg for base executable
         $VenvRoot = Split-Path (Split-Path $Candidate)
         $Cfg = Join-Path $VenvRoot "pyvenv.cfg"
         if (Test-Path $Cfg) {
@@ -83,7 +101,9 @@ foreach ($Candidate in $PythonCandidates) {
         if (-not $SelectedPython) {
             $SelectedPython = $Candidate
         }
-        break
+        if ($SelectedPython) {
+            break
+        }
     }
 }
 

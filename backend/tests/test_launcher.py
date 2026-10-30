@@ -20,18 +20,23 @@ import launch
 from launch import (
     Colors,
     EnvironmentInfo,
+    ProcessManager,
     ServiceTask,
     build_child_env,
     build_service_tasks,
     clean_ports,
     colorize,
     detect_environment,
+    get_child_pids,
     get_pids_for_port,
     is_port_in_use,
     kill_process_tree,
+    launch_engine,
+    main,
     parse_args,
     probe_backend_health,
     set_colors_enabled,
+    show_interactive_menu,
 )
 
 
@@ -246,3 +251,119 @@ def test_probe_backend_health_timeout() -> None:
             interval=0.1,
         )
         assert ready is False
+
+
+def test_process_manager_stop_all_idempotency() -> None:
+    manager = ProcessManager()
+    mock_task = ServiceTask(
+        name="MockService",
+        tag="MOCK",
+        color=Colors.CYAN,
+        command=["python", "-c", "import time; time.sleep(1)"],
+        cwd=repo_root,
+        env={},
+        port=8000,
+    )
+    mock_proc = MagicMock()
+    mock_proc.pid = 99999
+    mock_proc.poll.return_value = 0
+    manager.processes.append((mock_task, mock_proc))
+
+    with patch("launch.kill_process_tree") as mock_kill, patch("launch.clean_ports") as mock_clean:
+        # First call triggers stop
+        manager.stop_all(ports=[8000])
+        # Second call should be a no-op due to idempotency guard
+        manager.stop_all(ports=[8000])
+
+        assert manager._stopped is True
+        assert mock_clean.call_count == 1
+
+
+def test_get_child_pids_invalid() -> None:
+    assert get_child_pids(-1) == []
+    assert get_child_pids(0) == []
+
+
+def test_get_pids_for_port_windows_netstat_mock() -> None:
+    mock_netstat_output = """
+Active Connections
+
+  Proto  Local Address          Foreign Address        State           PID
+  TCP    0.0.0.0:800            0.0.0.0:0              LISTENING       1111
+  TCP    0.0.0.0:8000           0.0.0.0:0              LISTENING       2222
+  TCP    127.0.0.1:8000         0.0.0.0:0              LISTENING       2222
+  TCP    10.0.0.1:55432         10.0.0.2:8000          ESTABLISHED     3333
+  TCP    0.0.0.0:80000          0.0.0.0:0              LISTENING       4444
+  TCP    [::]:8000              [::]:0                 LISTENING       5555
+"""
+    mock_res = MagicMock()
+    mock_res.returncode = 0
+    mock_res.stdout = mock_netstat_output
+
+    with patch("sys.platform", "win32"), patch("subprocess.run", return_value=mock_res):
+        pids = get_pids_for_port(8000)
+        # Should only match PID 2222 and 5555, NOT 1111 (port 800), 3333 (foreign addr), or 4444 (port 80000)
+        assert 2222 in pids
+        assert 5555 in pids
+        assert 1111 not in pids
+        assert 3333 not in pids
+        assert 4444 not in pids
+
+
+def test_build_service_tasks_frontend_backend_env_propagation() -> None:
+    env_info = detect_environment(repo_root=repo_root)
+    if not env_info.dotnet_path:
+        env_info.dotnet_path = Path("/mock/dotnet")
+
+    tasks = build_service_tasks(
+        "both",
+        env_info,
+        backend_port=9090,
+        frontend_port=5200,
+        reload=False,
+    )
+
+    frontend_task = next(t for t in tasks if t.tag == "FRONTEND")
+    assert frontend_task.port == 5200
+    assert frontend_task.env["Ares__ApiBaseUrl"] == "http://127.0.0.1:9090"
+    assert "http://localhost:5200" in frontend_task.env["ASPNETCORE_URLS"]
+
+
+def test_launch_engine_aborts_if_port_remains_occupied() -> None:
+    env_info = detect_environment(repo_root=repo_root)
+    with patch("launch.is_port_in_use", return_value=True), patch("launch.clean_ports"):
+        code = launch_engine(
+            target="backend",
+            env_info=env_info,
+            backend_port=8000,
+            auto_clean_ports=True,
+        )
+        assert code == 1
+
+
+def test_show_interactive_menu_selection() -> None:
+    env_info = detect_environment(repo_root=repo_root)
+    with patch("builtins.input", side_effect=["1"]), patch("launch.check_ports_status"):
+        choice = show_interactive_menu(env_info)
+        assert choice == "both"
+
+    with patch("builtins.input", side_effect=["backend"]), patch("launch.check_ports_status"):
+        choice = show_interactive_menu(env_info)
+        assert choice == "backend"
+
+    with patch("builtins.input", side_effect=EOFError), patch("launch.check_ports_status"):
+        choice = show_interactive_menu(env_info)
+        assert choice == "exit"
+
+
+def test_main_status_and_clean_routing() -> None:
+    with patch("launch.check_ports_status") as mock_status:
+        code = main(["status", "--no-color"])
+        assert code == 0
+        assert mock_status.called
+
+    with patch("launch.clean_ports") as mock_clean:
+        code = main(["clean", "--no-color"])
+        assert code == 0
+        assert mock_clean.called
+
